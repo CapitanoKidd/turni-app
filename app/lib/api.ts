@@ -37,10 +37,12 @@ export async function analyzeShiftFile(
   formData.append("month", String(target.month));
   formData.append("year", String(target.year));
 
+  // Niente header Content-Type esplicito: fetch/FormData deve generarlo da
+  // solo per includere il "boundary" del multipart. Impostandolo a mano si
+  // rompe il parsing del file lato backend.
   const response = await fetch(`${getApiBaseUrl()}/api/analyze`, {
     method: "POST",
     body: formData,
-    headers: { "Content-Type": "multipart/form-data" },
   });
 
   const payload = (await response.json()) as AnalyzeResponse;

@@ -10,7 +10,10 @@
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://turni-app-5oxl.onrender.com"
+      }
     },
     "production": {
       "android": { "buildType": "app-bundle" }
