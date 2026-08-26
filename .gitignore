@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment secrets (mai committare chiavi Azure)
+.env
+.env.local
+
+# Backend build output
+backend/dist/
+
+# Expo / React Native
+app/.expo/
+app/dist/
+app/web-build/
+app/*.orig.*
+app/expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# macOS
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log

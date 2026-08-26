@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Turni",
+    "slug": "turni-app",
+    "scheme": "turniapp",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.turniapp.mobile"
+    },
+    "android": {
+      "package": "com.turniapp.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A"
+      },
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0F172A"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'app usa le foto per leggere la griglia dei turni che carichi.",
+          "cameraPermission": "L'app usa la fotocamera per fotografare la griglia dei turni."
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "apiBaseUrl": "http://localhost:3000"
+    }
+  }
+}
