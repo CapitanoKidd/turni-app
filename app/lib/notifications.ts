@@ -64,7 +64,7 @@ export async function scheduleAlarmsForEntries(
 
   for (const date of dates) {
     const shiftType = shiftTypeById.get(entries[date]);
-    if (!shiftType?.alarmEnabled || !shiftType.alarmTime) continue;
+    if (!shiftType || shiftType.isRestDay || !shiftType.alarmEnabled || !shiftType.alarmTime) continue;
 
     const triggerDate = toTriggerDate(date, shiftType.alarmTime);
     if (triggerDate <= now) continue; // non si programmano sveglie nel passato

@@ -15,6 +15,7 @@ export default function ShiftTypeEditorScreen() {
 
   const [allShiftTypes, setAllShiftTypes] = useState<ShiftType[]>([]);
   const [label, setLabel] = useState(params.prefillLabel ?? "");
+  const [isRestDay, setIsRestDay] = useState(false);
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
   const [alarmEnabled, setAlarmEnabled] = useState(false);
@@ -35,8 +36,9 @@ export default function ShiftTypeEditorScreen() {
         const existing = shiftTypes.find((s) => s.id === params.id);
         if (existing) {
           setLabel(existing.label);
-          setStartTime(existing.startTime);
-          setEndTime(existing.endTime);
+          setIsRestDay(existing.isRestDay);
+          setStartTime(existing.startTime ?? "06:00");
+          setEndTime(existing.endTime ?? "14:00");
           setAlarmEnabled(existing.alarmEnabled);
           setAlarmTime(existing.alarmTime ?? "05:15");
         }
@@ -60,11 +62,12 @@ export default function ShiftTypeEditorScreen() {
     const shiftType: ShiftType = {
       id: params.id ?? generateId(),
       label: trimmedLabel,
-      startTime,
-      endTime,
+      isRestDay,
+      startTime: isRestDay ? undefined : startTime,
+      endTime: isRestDay ? undefined : endTime,
       color: existingIndex >= 0 ? allShiftTypes[existingIndex].color : nextShiftColor(allShiftTypes.length),
-      alarmEnabled,
-      alarmTime: alarmEnabled ? alarmTime : undefined,
+      alarmEnabled: isRestDay ? false : alarmEnabled,
+      alarmTime: !isRestDay && alarmEnabled ? alarmTime : undefined,
     };
 
     const next =
@@ -108,20 +111,34 @@ export default function ShiftTypeEditorScreen() {
         placeholderTextColor={theme.colors.textMuted}
       />
 
-      <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
-      <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />
-
       <View style={styles.switchRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Sveglia per questo turno</Text>
-          {!globalAlarmEnabled ? (
-            <Text style={styles.hint}>La sveglia automatica e' disattivata nelle Impostazioni.</Text>
-          ) : null}
+          <Text style={styles.fieldLabel}>Riposo o ferie</Text>
+          <Text style={styles.hint}>Nessun orario di lavoro e nessuna sveglia per questo turno.</Text>
         </View>
-        <Switch value={alarmEnabled} onValueChange={setAlarmEnabled} />
+        <Switch value={isRestDay} onValueChange={setIsRestDay} />
       </View>
 
-      {alarmEnabled ? <TimeRow label="Orario sveglia" value={alarmTime} onPress={() => setActivePicker("alarm")} /> : null}
+      {!isRestDay ? (
+        <>
+          <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
+          <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />
+
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>Sveglia per questo turno</Text>
+              {!globalAlarmEnabled ? (
+                <Text style={styles.hint}>La sveglia automatica e' disattivata nelle Impostazioni.</Text>
+              ) : null}
+            </View>
+            <Switch value={alarmEnabled} onValueChange={setAlarmEnabled} />
+          </View>
+
+          {alarmEnabled ? (
+            <TimeRow label="Orario sveglia" value={alarmTime} onPress={() => setActivePicker("alarm")} />
+          ) : null}
+        </>
+      ) : null}
 
       {activePicker ? (
         <DateTimePicker

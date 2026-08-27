@@ -11,7 +11,7 @@ export function ShiftLegend({ shiftTypes }: { shiftTypes: ShiftType[] }) {
         <View key={shift.id} style={styles.item}>
           <View style={[styles.dot, { backgroundColor: shift.color }]} />
           <Text style={styles.label}>
-            {shift.label} · {shift.startTime}-{shift.endTime}
+            {shift.isRestDay ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
           </Text>
         </View>
       ))}

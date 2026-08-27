@@ -2,8 +2,10 @@
 export interface ShiftType {
   id: string;
   label: string; // testo libero scelto dall'utente: "M", "Matt", "1", "M1"...
-  startTime: string; // "HH:mm"
-  endTime: string; // "HH:mm"
+  /** Giorno di riposo/ferie: nessun orario di lavoro e nessuna sveglia. */
+  isRestDay: boolean;
+  startTime?: string; // "HH:mm", assente se isRestDay
+  endTime?: string; // "HH:mm", assente se isRestDay
   color: string; // colore usato nel calendario/legenda
   alarmEnabled: boolean;
   alarmTime?: string; // "HH:mm", richiesto se alarmEnabled

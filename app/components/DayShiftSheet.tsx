@@ -51,7 +51,7 @@ export function DayShiftSheet({
                 >
                   <View style={[styles.dot, { backgroundColor: shift.color }]} />
                   <Text style={styles.optionText}>
-                    {shift.label} · {shift.startTime}-{shift.endTime}
+                    {shift.isRestDay ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
                   </Text>
                 </TouchableOpacity>
               ))

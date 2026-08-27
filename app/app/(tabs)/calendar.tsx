@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { DayShiftSheet } from "../../components/DayShiftSheet";
 import { MonthCalendar } from "../../components/MonthCalendar";
+import { MonthSummary } from "../../components/MonthSummary";
 import { ShiftLegend } from "../../components/ShiftLegend";
 import { cancelAlarmsForDates, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
@@ -97,6 +98,7 @@ export default function CalendarScreen() {
             onDayPress={setSelectedDate}
           />
           {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
+          <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
           {settings?.legendVisible ? <ShiftLegend shiftTypes={shiftTypes} /> : null}
         </>
       )}

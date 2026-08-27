@@ -88,8 +88,9 @@ export default function SettingsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.shiftLabel}>{shift.label}</Text>
                 <Text style={styles.shiftTime}>
-                  {shift.startTime}-{shift.endTime}
-                  {shift.alarmEnabled ? ` · sveglia ${shift.alarmTime}` : ""}
+                  {shift.isRestDay
+                    ? "Riposo/ferie"
+                    : `${shift.startTime}-${shift.endTime}${shift.alarmEnabled ? ` · sveglia ${shift.alarmTime}` : ""}`}
                 </Text>
               </View>
             </TouchableOpacity>
