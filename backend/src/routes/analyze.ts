@@ -4,7 +4,7 @@ import { upload } from "../middleware/upload.js";
 import { extractTablesFromDocx } from "../services/docxTableExtractor.js";
 import { AzureDocumentIntelligenceProvider } from "../services/ocr/azureDocumentIntelligence.js";
 import { MockOcrProvider } from "../services/ocr/mockProvider.js";
-import type { OcrProvider } from "../services/ocr/types.js";
+import type { ExtractedTable, OcrProvider } from "../services/ocr/types.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "../services/shiftGridParser.js";
 
@@ -45,6 +45,32 @@ function buildOcrProvider(target: { year: number; month1To12: number }): OcrProv
 
 class ServiceUnavailableError extends Error {}
 
+/** Mostra le tabelle grezze rilevate (righe/colonne/celle), leggibili da un umano: serve alla modalita' debug. */
+function formatTablesForDebug(tables: ExtractedTable[]): string {
+  if (tables.length === 0) return "(nessuna tabella rilevata)";
+
+  return tables
+    .map((table, tableIndex) => {
+      const byRow = new Map<number, Map<number, string>>();
+      for (const cell of table.cells) {
+        if (!byRow.has(cell.rowIndex)) byRow.set(cell.rowIndex, new Map());
+        byRow.get(cell.rowIndex)?.set(cell.columnIndex, cell.text.replace(/\n/g, "⏎"));
+      }
+
+      const rowIndexes = [...byRow.keys()].sort((a, b) => a - b);
+      const lines = rowIndexes.map((rowIndex) => {
+        const cols = byRow.get(rowIndex);
+        if (!cols) return `  riga ${rowIndex}: (vuota)`;
+        const maxCol = Math.max(...cols.keys());
+        const cellsText = Array.from({ length: maxCol + 1 }, (_, c) => cols.get(c) ?? "·").join(" | ");
+        return `  riga ${rowIndex}: ${cellsText}`;
+      });
+
+      return `Tabella ${tableIndex + 1} (${table.rowCount} righe x ${table.columnCount} colonne):\n${lines.join("\n")}`;
+    })
+    .join("\n\n");
+}
+
 analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req, res) => {
   const file = req.file;
   if (!file) {
@@ -55,20 +81,25 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
   const target = resolveTargetMonth(req.body ?? {});
   const staffNameRaw = typeof req.body?.staffName === "string" ? req.body.staffName.trim() : "";
   const staffName = staffNameRaw || undefined;
+  const debugRequested = req.body?.debug === "true" || req.body?.debug === true;
 
   try {
     let result: ShiftGridParseResult;
     let routingDebug: string[] = [];
+    let debugTables: ExtractedTable[] = [];
 
     if (file.mimetype === DOCX_MIME) {
-      const tables = await extractTablesFromDocx(file.buffer);
-      result = parseShiftGrid(tables, target, staffName);
+      debugTables = await extractTablesFromDocx(file.buffer);
+      result = parseShiftGrid(debugTables, target, staffName);
     } else if (file.mimetype === PDF_MIME) {
       const provider = buildOcrProvider(target);
-      ({ result, debug: routingDebug } = await resolvePdfShiftResult(file.buffer, target, staffName, provider));
+      const outcome = await resolvePdfShiftResult(file.buffer, target, staffName, provider);
+      result = outcome.result;
+      routingDebug = outcome.debug;
+      debugTables = outcome.tables;
     } else {
-      const tables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
-      result = parseShiftGrid(tables, target, staffName);
+      debugTables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
+      result = parseShiftGrid(debugTables, target, staffName);
     }
 
     if (routingDebug.length > 0) {
@@ -85,6 +116,9 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       detectedShifts: result.detectedShifts,
       warnings: result.warnings,
       candidateNames: result.candidateNames,
+      ...(debugRequested
+        ? { debugText: [...routingDebug, "", formatTablesForDebug(debugTables)].filter(Boolean).join("\n") }
+        : {}),
     });
   } catch (error) {
     if (error instanceof ServiceUnavailableError) {

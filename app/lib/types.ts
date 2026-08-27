@@ -18,6 +18,8 @@ export interface AppSettings {
   userName: string;
   autoAlarmEnabled: boolean;
   legendVisible: boolean;
+  /** Mostra, dopo ogni caricamento, cosa ha rilevato davvero il motore di analisi (per capire perche' un turno manca). */
+  debugMode: boolean;
 }
 
 /** Notifiche locali gia' programmate, per poterle cancellare/ri-schedulare. Chiave: "YYYY-MM-DD". */
@@ -38,4 +40,6 @@ export interface AnalyzeResponse {
   error?: string;
   /** Presente se il documento contiene i turni di piu' persone e serve scegliere quale riga e' la propria. */
   candidateNames?: string[];
+  /** Presente solo con la modalita' debug attiva: cosa ha rilevato davvero il motore di analisi. */
+  debugText?: string;
 }

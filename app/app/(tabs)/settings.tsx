@@ -65,6 +65,13 @@ export default function SettingsScreen() {
           value={settings.legendVisible}
           onValueChange={(legendVisible) => updateSettings({ legendVisible })}
         />
+        <Divider />
+        <Row
+          title="Modalità debug"
+          subtitle="Dopo ogni caricamento, mostra cosa ha rilevato davvero l'analisi"
+          value={settings.debugMode}
+          onValueChange={(debugMode) => updateSettings({ debugMode })}
+        />
       </View>
 
       <View style={styles.section}>

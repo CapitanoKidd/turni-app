@@ -20,12 +20,16 @@ export default function HomeScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState("");
+  const [debugMode, setDebugMode] = useState(false);
   const [pendingFile, setPendingFile] = useState<PickedFile | null>(null);
   const [candidateNames, setCandidateNames] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      storage.getSettings().then((s) => setUserName(s.userName));
+      storage.getSettings().then((s) => {
+        setUserName(s.userName);
+        setDebugMode(s.debugMode);
+      });
     }, []),
   );
 
@@ -44,10 +48,23 @@ export default function HomeScreen() {
   async function runAnalysis(file: PickedFile, staffName?: string) {
     setLoading(true);
     try {
-      const result = await analyzeShiftFile(file, { month, year }, staffName);
+      const result = await analyzeShiftFile(file, { month, year }, staffName, debugMode);
       if (result.candidateNames && result.candidateNames.length > 0) {
         setPendingFile(file);
         setCandidateNames(result.candidateNames);
+        return;
+      }
+      if (result.debugText) {
+        router.push({
+          pathname: "/debug-info",
+          params: {
+            debugText: result.debugText,
+            month: String(month),
+            year: String(year),
+            detectedShifts: JSON.stringify(result.detectedShifts ?? []),
+            warnings: JSON.stringify(result.warnings ?? []),
+          },
+        });
         return;
       }
       goToReview(result);

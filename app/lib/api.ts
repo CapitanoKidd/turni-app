@@ -27,6 +27,7 @@ export async function analyzeShiftFile(
   file: PickedFile,
   target: { month: number; year: number },
   staffName?: string,
+  debug?: boolean,
 ): Promise<AnalyzeResponse> {
   const formData = new FormData();
   // React Native accetta questa forma per gli upload multipart.
@@ -38,6 +39,7 @@ export async function analyzeShiftFile(
   formData.append("month", String(target.month));
   formData.append("year", String(target.year));
   if (staffName) formData.append("staffName", staffName);
+  if (debug) formData.append("debug", "true");
 
   // Niente header Content-Type esplicito: fetch/FormData deve generarlo da
   // solo per includere il "boundary" del multipart. Impostandolo a mano si

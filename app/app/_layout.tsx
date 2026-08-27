@@ -27,6 +27,10 @@ export default function RootLayout() {
           name="shift-type-editor"
           options={{ presentation: "modal", title: "Tipo di turno" }}
         />
+        <Stack.Screen
+          name="debug-info"
+          options={{ presentation: "modal", title: "Debug analisi" }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

@@ -1,11 +1,23 @@
 import { findStaffPage } from "./findStaffPage.js";
-import type { OcrProvider } from "./ocr/types.js";
+import type { ExtractedTable, OcrProvider } from "./ocr/types.js";
 import { extractSinglePagePdf, rasterizeAllPages, rasterizePage } from "./pdfRasterizer.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "./shiftGridParser.js";
 
 export const PDF_MIME = "application/pdf";
 export const PNG_MIME = "image/png";
 const LOW_COVERAGE_THRESHOLD = 0.5;
+
+export interface PdfRoutingOutcome {
+  result: ShiftGridParseResult;
+  /** Le tabelle grezze usate per il risultato scelto: utili per la modalita' debug (vedere cosa ha rilevato Azure). */
+  tables: ExtractedTable[];
+  debug: string[];
+}
+
+interface Attempt {
+  tables: ExtractedTable[];
+  result: ShiftGridParseResult;
+}
 
 /**
  * Un risultato "scarso" non e' abbastanza affidabile da fermarsi li'.
@@ -30,6 +42,10 @@ export function pickBetterResult(a: ShiftGridParseResult, b: ShiftGridParseResul
   return a;
 }
 
+function pickBetterAttempt(a: Attempt, b: Attempt): Attempt {
+  return pickBetterResult(a.result, b.result) === b.result ? b : a;
+}
+
 /**
  * Risolve i turni di un PDF processando il meno possibile:
  * 1. Cerca localmente (gratis, nessuna chiamata Azure) la pagina che
@@ -50,7 +66,7 @@ export async function resolvePdfShiftResult(
   target: { year: number; month1To12: number },
   staffName: string | undefined,
   provider: OcrProvider,
-): Promise<{ result: ShiftGridParseResult; debug: string[] }> {
+): Promise<PdfRoutingOutcome> {
   const debug: string[] = [];
   const staffPage = await findStaffPage(buffer, staffName);
 
@@ -61,20 +77,20 @@ export async function resolvePdfShiftResult(
 
     const singlePagePdf = await extractSinglePagePdf(buffer, staffPage.pageIndex);
     const directTables = await provider.extractTables(singlePagePdf, PDF_MIME);
-    const directResult = parseShiftGrid(directTables, target, staffName);
-    debug.push(`analisi diretta pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(directResult.coverage * 100)}%`);
+    const direct: Attempt = { tables: directTables, result: parseShiftGrid(directTables, target, staffName) };
+    debug.push(`analisi diretta pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(direct.result.coverage * 100)}%`);
 
-    if (!isWeakResult(directResult)) {
-      return { result: directResult, debug };
+    if (!isWeakResult(direct.result)) {
+      return { ...direct, debug };
     }
 
     debug.push(`copertura scarsa: rasterizzo solo la pagina ${staffPage.pageIndex + 1} e riprovo`);
-    const rasterized = await rasterizePage(buffer, staffPage.pageIndex);
-    const rasterizedTables = await provider.extractTables(rasterized, PNG_MIME);
-    const rasterizedResult = parseShiftGrid(rasterizedTables, target, staffName);
-    debug.push(`analisi rasterizzata pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(rasterizedResult.coverage * 100)}%`);
+    const rasterizedPng = await rasterizePage(buffer, staffPage.pageIndex);
+    const rasterizedTables = await provider.extractTables(rasterizedPng, PNG_MIME);
+    const rasterized: Attempt = { tables: rasterizedTables, result: parseShiftGrid(rasterizedTables, target, staffName) };
+    debug.push(`analisi rasterizzata pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(rasterized.result.coverage * 100)}%`);
 
-    return { result: pickBetterResult(directResult, rasterizedResult), debug };
+    return { ...pickBetterAttempt(direct, rasterized), debug };
   }
 
   debug.push(
@@ -84,18 +100,18 @@ export async function resolvePdfShiftResult(
   );
 
   const wholeDocTables = await provider.extractTables(buffer, PDF_MIME);
-  const wholeDocResult = parseShiftGrid(wholeDocTables, target, staffName);
-  debug.push(`analisi diretta intero documento: copertura ${Math.round(wholeDocResult.coverage * 100)}%`);
+  const wholeDoc: Attempt = { tables: wholeDocTables, result: parseShiftGrid(wholeDocTables, target, staffName) };
+  debug.push(`analisi diretta intero documento: copertura ${Math.round(wholeDoc.result.coverage * 100)}%`);
 
-  if (!isWeakResult(wholeDocResult)) {
-    return { result: wholeDocResult, debug };
+  if (!isWeakResult(wholeDoc.result)) {
+    return { ...wholeDoc, debug };
   }
 
   debug.push("copertura scarsa: rasterizzo tutte le pagine e riprovo");
   const pages = await rasterizeAllPages(buffer);
   const rasterizedTables = (await Promise.all(pages.map((png) => provider.extractTables(png, PNG_MIME)))).flat();
-  const rasterizedResult = parseShiftGrid(rasterizedTables, target, staffName);
-  debug.push(`analisi rasterizzata intero documento: copertura ${Math.round(rasterizedResult.coverage * 100)}%`);
+  const rasterized: Attempt = { tables: rasterizedTables, result: parseShiftGrid(rasterizedTables, target, staffName) };
+  debug.push(`analisi rasterizzata intero documento: copertura ${Math.round(rasterized.result.coverage * 100)}%`);
 
-  return { result: pickBetterResult(wholeDocResult, rasterizedResult), debug };
+  return { ...pickBetterAttempt(wholeDoc, rasterized), debug };
 }

@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   userName: "",
   autoAlarmEnabled: false,
   legendVisible: true,
+  debugMode: false,
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
