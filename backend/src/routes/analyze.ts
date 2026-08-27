@@ -59,9 +59,17 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
         ? await extractTablesFromDocx(file.buffer)
         : await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
 
-    const { detectedShifts, warnings } = parseShiftGrid(tables, target);
+    const staffName = typeof req.body?.staffName === "string" ? req.body.staffName.trim() : undefined;
+    const { detectedShifts, warnings, candidateNames } = parseShiftGrid(tables, target, staffName || undefined);
 
-    res.json({ success: true, month: target.month1To12, year: target.year, detectedShifts, warnings });
+    res.json({
+      success: true,
+      month: target.month1To12,
+      year: target.year,
+      detectedShifts,
+      warnings,
+      candidateNames,
+    });
   } catch (error) {
     if (error instanceof ServiceUnavailableError) {
       res.status(503).json({ success: false, error: error.message });

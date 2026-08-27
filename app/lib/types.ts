@@ -34,4 +34,6 @@ export interface AnalyzeResponse {
   detectedShifts?: DetectedShift[];
   warnings?: string[];
   error?: string;
+  /** Presente se il documento contiene i turni di piu' persone e serve scegliere quale riga e' la propria. */
+  candidateNames?: string[];
 }

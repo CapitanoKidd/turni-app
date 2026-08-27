@@ -9,6 +9,13 @@ export interface DetectedShift {
 export interface ShiftGridParseResult {
   detectedShifts: DetectedShift[];
   warnings: string[];
+  /**
+   * Presente quando il documento e' una turnistica con piu' persone (una
+   * riga per dipendente) e non siamo riusciti ad abbinare con sicurezza il
+   * nome fornito a una riga: contiene i nomi trovati, cosi' l'app puo'
+   * chiedere all'utente "quale di questi sei?" invece di indovinare.
+   */
+  candidateNames?: string[];
 }
 
 interface TargetMonth {
@@ -35,10 +42,40 @@ function parseDayNumber(text: string): number | null {
   return value >= 1 && value <= 31 ? value : null;
 }
 
+function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
+  const map = new Map<K, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = map.get(k);
+    if (list) list.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
+}
+
+/** Trova la riga/colonna dove piu' della meta' delle celle non vuote sono numeri di giorno validi, preferendo quella con piu' corrispondenze (es. la vera riga dei giorni batte righe di riepilogo piu' corte). */
+function findDayAxis(groups: Map<number, TableCell[]>, totalDays: number): number | null {
+  let bestIndex: number | null = null;
+  let bestScore = 0;
+
+  for (const [index, cells] of groups) {
+    const nonEmpty = cells.filter((c) => c.text.trim().length > 0);
+    if (nonEmpty.length === 0) continue;
+    const dayLike = nonEmpty.filter((c) => parseDayNumber(c.text) !== null).length;
+    const score = dayLike / nonEmpty.length;
+    if (score > 0.5 && dayLike > bestScore) {
+      bestScore = dayLike;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
 /**
- * Strategia A: griglie "calendario" dove ogni cella contiene sia il numero
- * del giorno sia il codice turno (es. "14\nM", "14 - M", "14M"), come accade
- * spesso in foto/PDF di calendari mensili.
+ * Strategia A: griglie "calendario" di una sola persona, dove ogni cella
+ * contiene sia il numero del giorno sia il codice turno (es. "14\nM"), come
+ * accade spesso in foto/PDF di calendari mensili personali.
  */
 function parseCombinedCells(tables: ExtractedTable[], target: TargetMonth): DetectedShift[] {
   const combinedPattern = /^(\d{1,2})\s*[\n\-:.]?\s*([A-Za-z][A-Za-z0-9]{0,4})?$/;
@@ -60,8 +97,9 @@ function parseCombinedCells(tables: ExtractedTable[], target: TargetMonth): Dete
 }
 
 /**
- * Strategia B: griglie a due assi, con una riga (o colonna) di numeri di
- * giorno e la riga (o colonna) immediatamente successiva con i codici turno.
+ * Strategia B: griglie di una sola persona a due assi, con una riga (o
+ * colonna) di numeri di giorno e la riga (o colonna) immediatamente
+ * successiva con i codici turno.
  */
 function parseTwoAxisTables(tables: ExtractedTable[], target: TargetMonth): DetectedShift[] {
   const found: DetectedShift[] = [];
@@ -89,36 +127,6 @@ function parseTwoAxisTables(tables: ExtractedTable[], target: TargetMonth): Dete
   return found;
 }
 
-function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
-  const map = new Map<K, T[]>();
-  for (const item of items) {
-    const k = key(item);
-    const list = map.get(k);
-    if (list) list.push(item);
-    else map.set(k, [item]);
-  }
-  return map;
-}
-
-/** Trova la riga/colonna dove piu' della meta' delle celle non vuote sono numeri di giorno validi. */
-function findDayAxis(groups: Map<number, TableCell[]>, totalDays: number): number | null {
-  let bestIndex: number | null = null;
-  let bestScore = 0;
-
-  for (const [index, cells] of groups) {
-    const nonEmpty = cells.filter((c) => c.text.trim().length > 0);
-    if (nonEmpty.length === 0) continue;
-    const dayLike = nonEmpty.filter((c) => parseDayNumber(c.text) !== null).length;
-    const score = dayLike / nonEmpty.length;
-    if (score > 0.5 && dayLike > bestScore) {
-      bestScore = dayLike;
-      bestIndex = index;
-    }
-  }
-
-  return bestIndex;
-}
-
 function matchAxisPairs(
   dayCells: TableCell[],
   codeCells: TableCell[],
@@ -141,13 +149,175 @@ function matchAxisPairs(
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// Strategia C: turnistiche multi-persona (una riga per dipendente, una
+// colonna per giorno del mese) — il formato usato dai fogli Excel di reparto.
+// ---------------------------------------------------------------------------
+
+function normalizeName(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function nameWords(text: string): string[] {
+  return normalizeName(text).split(" ").filter(Boolean);
+}
+
+/** Quanto il nome di una riga corrisponde al nome cercato: frazione delle parole cercate trovate nel nome della riga. */
+function nameMatchScore(rowName: string, targetName: string): number {
+  const target = nameWords(targetName);
+  if (target.length === 0) return 0;
+  const row = new Set(nameWords(rowName));
+  const matched = target.filter((w) => row.has(w)).length;
+  return matched / target.length;
+}
+
+interface RosterTable {
+  table: ExtractedTable;
+  headerRowIndex: number;
+  dayByColumn: Map<number, number>; // columnIndex -> giorno del mese
+  nameColumn: number;
+  rowNames: Map<number, string>; // rowIndex -> testo colonna nome (righe dati)
+}
+
+/** Individua, se presente, la colonna che contiene i nomi dei dipendenti in una tabella con riga di intestazione = giorni del mese. */
+function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTable | null {
+  const totalDays = daysInMonth(target);
+  const byRow = groupBy(table.cells, (c) => c.rowIndex);
+  const headerRowIndex = findDayAxis(byRow, totalDays);
+  if (headerRowIndex === null) return null;
+
+  const dayByColumn = new Map<number, number>();
+  for (const cell of byRow.get(headerRowIndex) ?? []) {
+    const day = parseDayNumber(cell.text);
+    if (day !== null) dayByColumn.set(cell.columnIndex, day);
+  }
+  if (dayByColumn.size < 5) return null; // troppo poche colonne-giorno per essere una turnistica del mese
+
+  const minDayColumn = Math.min(...dayByColumn.keys());
+  const dataRows = [...byRow.entries()].filter(([rowIndex]) => rowIndex > headerRowIndex);
+
+  // Colonne a sinistra dei giorni: candidate a contenere il nome del dipendente.
+  const candidateColumns = new Set<number>();
+  for (const [, cells] of dataRows) {
+    for (const cell of cells) {
+      if (cell.columnIndex < minDayColumn) candidateColumns.add(cell.columnIndex);
+    }
+  }
+
+  let bestColumn: number | null = null;
+  let bestScore = 0;
+  for (const columnIndex of candidateColumns) {
+    let nameLike = 0;
+    let nonEmpty = 0;
+    for (const [, cells] of dataRows) {
+      const cell = cells.find((c) => c.columnIndex === columnIndex);
+      const text = cell?.text.trim() ?? "";
+      if (!text) continue;
+      nonEmpty += 1;
+      // Un nome ha piu' lettere che cifre ed e' abbastanza lungo da non essere un codice turno.
+      const letters = (text.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
+      if (letters >= 3 && letters / text.length > 0.6) nameLike += 1;
+    }
+    const score = nonEmpty > 0 ? nameLike / nonEmpty : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestColumn = columnIndex;
+    }
+  }
+  if (bestColumn === null || bestScore < 0.5) return null;
+
+  const rowNames = new Map<number, string>();
+  for (const [rowIndex, cells] of dataRows) {
+    const text = cells.find((c) => c.columnIndex === bestColumn)?.text.trim();
+    if (text) rowNames.set(rowIndex, text);
+  }
+
+  return { table, headerRowIndex, dayByColumn, nameColumn: bestColumn, rowNames };
+}
+
+function extractRowShifts(roster: RosterTable, rowIndex: number, target: TargetMonth): DetectedShift[] {
+  const cellsInRow = roster.table.cells.filter((c) => c.rowIndex === rowIndex);
+  const byColumn = new Map(cellsInRow.map((c) => [c.columnIndex, c.text.trim()]));
+  const results: DetectedShift[] = [];
+
+  for (const [columnIndex, day] of roster.dayByColumn) {
+    const code = byColumn.get(columnIndex);
+    if (!code) continue;
+    results.push({ date: toIsoDate(target, day), rawCode: code.toUpperCase(), confidence: 0.85 });
+  }
+
+  return results;
+}
+
+/**
+ * Prova la strategia "turnistica multi-persona": cerca tabelle con una riga
+ * di giorni e una colonna di nomi, poi individua la riga che corrisponde a
+ * `staffName`. Se trova piu' tabelle di questo tipo controlla tutte, cosi'
+ * l'utente puo' caricare l'intero foglio anche se ha piu' schede/tabelle.
+ */
+function tryRosterStrategy(
+  tables: ExtractedTable[],
+  target: TargetMonth,
+  staffName: string | undefined,
+): { detectedShifts: DetectedShift[]; candidateNames: string[]; isRoster: boolean } {
+  const rosterTables = tables
+    .map((table) => detectRosterTable(table, target))
+    .filter((r): r is RosterTable => r !== null);
+
+  if (rosterTables.length === 0) {
+    return { detectedShifts: [], candidateNames: [], isRoster: false };
+  }
+
+  const allCandidates: string[] = [];
+  let bestMatch: { roster: RosterTable; rowIndex: number; score: number } | null = null;
+  let secondBestScore = 0;
+
+  for (const roster of rosterTables) {
+    for (const [rowIndex, name] of roster.rowNames) {
+      allCandidates.push(name);
+      if (!staffName) continue;
+      const score = nameMatchScore(name, staffName);
+      if (!bestMatch || score > bestMatch.score) {
+        secondBestScore = bestMatch?.score ?? 0;
+        bestMatch = { roster, rowIndex, score };
+      } else if (score > secondBestScore) {
+        secondBestScore = score;
+      }
+    }
+  }
+
+  const candidateNames = [...new Set(allCandidates)];
+  const isConfident = bestMatch !== null && bestMatch.score >= 0.5 && bestMatch.score - secondBestScore >= 0.3;
+
+  if (isConfident && bestMatch) {
+    return {
+      detectedShifts: extractRowShifts(bestMatch.roster, bestMatch.rowIndex, target),
+      candidateNames: [],
+      isRoster: true,
+    };
+  }
+
+  return { detectedShifts: [], candidateNames, isRoster: true };
+}
+
 /**
  * Converte le tabelle grezze estratte da OCR/docx in una lista di turni per
- * giorno. Euristica v1: prova prima le griglie "calendario" (giorno+codice
- * nella stessa cella), poi le griglie a due assi separati; se la copertura
- * resta bassa segnala un warning per invitare l'utente a verificare.
+ * giorno. Prova, in ordine: (1) turnistica multi-persona se il documento ha
+ * quella forma (serve `staffName` per sapere quale riga prendere); (2)
+ * calendario "giorno+codice nella stessa cella"; (3) griglia a due assi.
+ * Se la copertura resta bassa segnala un warning.
  */
-export function parseShiftGrid(tables: ExtractedTable[], target: TargetMonth): ShiftGridParseResult {
+export function parseShiftGrid(
+  tables: ExtractedTable[],
+  target: TargetMonth,
+  staffName?: string,
+): ShiftGridParseResult {
   const warnings: string[] = [];
 
   if (tables.length === 0) {
@@ -155,6 +325,29 @@ export function parseShiftGrid(tables: ExtractedTable[], target: TargetMonth): S
       detectedShifts: [],
       warnings: ["Nessuna tabella riconosciuta nel documento: prova con una foto piu' nitida o un altro formato."],
     };
+  }
+
+  const roster = tryRosterStrategy(tables, target, staffName);
+  if (roster.isRoster) {
+    if (roster.candidateNames.length > 0) {
+      return {
+        detectedShifts: [],
+        warnings: [
+          staffName
+            ? `Non ho trovato con certezza "${staffName}" nell'elenco: scegli il tuo nome dalla lista.`
+            : "Questo documento contiene i turni di piu' persone: scegli il tuo nome dalla lista.",
+        ],
+        candidateNames: roster.candidateNames,
+      };
+    }
+    const totalDays = daysInMonth(target);
+    const coverage = roster.detectedShifts.length / totalDays;
+    if (coverage < 0.5) {
+      warnings.push(
+        `Riconosciuti solo ${roster.detectedShifts.length} giorni su ${totalDays}: controlla e completa manualmente i turni mancanti.`,
+      );
+    }
+    return { detectedShifts: roster.detectedShifts, warnings };
   }
 
   const combined = parseCombinedCells(tables, target);

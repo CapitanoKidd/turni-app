@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StaffPickerSheet } from "../../components/StaffPickerSheet";
 import { UploadButton } from "../../components/UploadButton";
 import { analyzeShiftFile, type PickedFile } from "../../lib/api";
+import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
+import type { AnalyzeResponse } from "../../lib/types";
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -16,6 +19,57 @@ export default function HomeScreen() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [loading, setLoading] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [pendingFile, setPendingFile] = useState<PickedFile | null>(null);
+  const [candidateNames, setCandidateNames] = useState<string[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      storage.getSettings().then((s) => setUserName(s.userName));
+    }, []),
+  );
+
+  function goToReview(result: AnalyzeResponse) {
+    router.push({
+      pathname: "/import-review",
+      params: {
+        month: String(month),
+        year: String(year),
+        detectedShifts: JSON.stringify(result.detectedShifts ?? []),
+        warnings: JSON.stringify(result.warnings ?? []),
+      },
+    });
+  }
+
+  async function runAnalysis(file: PickedFile, staffName?: string) {
+    setLoading(true);
+    try {
+      const result = await analyzeShiftFile(file, { month, year }, staffName);
+      if (result.candidateNames && result.candidateNames.length > 0) {
+        setPendingFile(file);
+        setCandidateNames(result.candidateNames);
+        return;
+      }
+      goToReview(result);
+    } catch (error) {
+      Alert.alert("Analisi non riuscita", error instanceof Error ? error.message : "Riprova.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePickStaffName(name: string) {
+    setCandidateNames([]);
+    if (!pendingFile) return;
+    // Ricorda la scelta: i prossimi caricamenti abbineranno il nome da soli.
+    if (name !== userName) {
+      const settings = await storage.getSettings();
+      await storage.saveSettings({ ...settings, userName: name });
+      setUserName(name);
+    }
+    await runAnalysis(pendingFile, name);
+    setPendingFile(null);
+  }
 
   function shiftMonth(delta: number) {
     let newMonth = month + delta;
@@ -27,23 +81,7 @@ export default function HomeScreen() {
   }
 
   async function handleFilePicked(file: PickedFile) {
-    setLoading(true);
-    try {
-      const result = await analyzeShiftFile(file, { month, year });
-      router.push({
-        pathname: "/import-review",
-        params: {
-          month: String(month),
-          year: String(year),
-          detectedShifts: JSON.stringify(result.detectedShifts ?? []),
-          warnings: JSON.stringify(result.warnings ?? []),
-        },
-      });
-    } catch (error) {
-      Alert.alert("Analisi non riuscita", error instanceof Error ? error.message : "Riprova.");
-    } finally {
-      setLoading(false);
-    }
+    await runAnalysis(file, userName || undefined);
   }
 
   return (
@@ -77,6 +115,16 @@ export default function HomeScreen() {
       <Text style={styles.privacyNote}>
         Il file non viene mai salvato: viene analizzato ed eliminato subito dopo.
       </Text>
+
+      <StaffPickerSheet
+        visible={candidateNames.length > 0}
+        names={candidateNames}
+        onPick={handlePickStaffName}
+        onClose={() => {
+          setCandidateNames([]);
+          setPendingFile(null);
+        }}
+      />
     </ScrollView>
   );
 }
