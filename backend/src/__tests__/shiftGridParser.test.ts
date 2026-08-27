@@ -130,5 +130,9 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
 
     const day24 = result.detectedShifts.find((s) => s.date === "2026-08-24");
     assert.equal(day24?.rawCode, "M", "il giorno fuso col numero di settimana ('35 Mo 24') deve comunque essere riconosciuto");
+
+    const dates = result.detectedShifts.map((s) => s.date);
+    const sortedDates = [...dates].sort();
+    assert.deepEqual(dates, sortedDates, "i turni devono uscire in ordine di data, non nell'ordine in cui le colonne sono state unite");
   });
 });

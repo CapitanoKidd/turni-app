@@ -328,7 +328,10 @@ function extractRowShifts(roster: RosterTable, rowIndex: number, target: TargetM
     results.push({ date, rawCode: code.toUpperCase(), confidence: 0.85 });
   }
 
-  return results;
+  // roster.dayByColumn viene attraversato nell'ordine in cui le colonne sono
+  // state inserite (che ora unisce piu' righe di intestazione), non in
+  // ordine di data: senza questo i turni arrivano all'app mescolati.
+  return results.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
