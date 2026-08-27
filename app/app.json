@@ -51,7 +51,7 @@
       "router": {
         "origin": false
       },
-      "apiBaseUrl": "http://localhost:3000"
+      "apiBaseUrl": "https://turni-app-5oxl.onrender.com"
     }
   }
 }
