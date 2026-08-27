@@ -5,7 +5,8 @@ import { extractTablesFromDocx } from "../services/docxTableExtractor.js";
 import { AzureDocumentIntelligenceProvider } from "../services/ocr/azureDocumentIntelligence.js";
 import { MockOcrProvider } from "../services/ocr/mockProvider.js";
 import type { OcrProvider } from "../services/ocr/types.js";
-import { parseShiftGrid } from "../services/shiftGridParser.js";
+import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
+import { parseShiftGrid, type ShiftGridParseResult } from "../services/shiftGridParser.js";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -52,23 +53,38 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
   }
 
   const target = resolveTargetMonth(req.body ?? {});
+  const staffNameRaw = typeof req.body?.staffName === "string" ? req.body.staffName.trim() : "";
+  const staffName = staffNameRaw || undefined;
 
   try {
-    const tables =
-      file.mimetype === DOCX_MIME
-        ? await extractTablesFromDocx(file.buffer)
-        : await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
+    let result: ShiftGridParseResult;
+    let routingDebug: string[] = [];
 
-    const staffName = typeof req.body?.staffName === "string" ? req.body.staffName.trim() : undefined;
-    const { detectedShifts, warnings, candidateNames } = parseShiftGrid(tables, target, staffName || undefined);
+    if (file.mimetype === DOCX_MIME) {
+      const tables = await extractTablesFromDocx(file.buffer);
+      result = parseShiftGrid(tables, target, staffName);
+    } else if (file.mimetype === PDF_MIME) {
+      const provider = buildOcrProvider(target);
+      ({ result, debug: routingDebug } = await resolvePdfShiftResult(file.buffer, target, staffName, provider));
+    } else {
+      const tables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
+      result = parseShiftGrid(tables, target, staffName);
+    }
+
+    if (routingDebug.length > 0) {
+      // Visibile nei log del backend (es. scheda "Logs" su Render): utile per
+      // capire quale percorso e' stato scelto senza dover leggere il codice.
+      // eslint-disable-next-line no-console
+      console.log(`[analyze] routing PDF: ${routingDebug.join(" -> ")}`);
+    }
 
     res.json({
       success: true,
       month: target.month1To12,
       year: target.year,
-      detectedShifts,
-      warnings,
-      candidateNames,
+      detectedShifts: result.detectedShifts,
+      warnings: result.warnings,
+      candidateNames: result.candidateNames,
     });
   } catch (error) {
     if (error instanceof ServiceUnavailableError) {

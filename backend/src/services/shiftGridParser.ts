@@ -16,6 +16,8 @@ export interface ShiftGridParseResult {
    * chiedere all'utente "quale di questi sei?" invece di indovinare.
    */
   candidateNames?: string[];
+  /** Quota di giorni del mese per cui e' stato trovato un turno (0-1). Utile a chi chiama per decidere se il risultato e' abbastanza buono da fidarsene. */
+  coverage: number;
 }
 
 interface TargetMonth {
@@ -204,7 +206,7 @@ function matchAxisPairs(
 // colonna per giorno del mese) — il formato usato dai fogli Excel di reparto.
 // ---------------------------------------------------------------------------
 
-function normalizeName(text: string): string {
+export function normalizeName(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -214,12 +216,12 @@ function normalizeName(text: string): string {
     .trim();
 }
 
-function nameWords(text: string): string[] {
+export function nameWords(text: string): string[] {
   return normalizeName(text).split(" ").filter(Boolean);
 }
 
 /** Quanto il nome di una riga corrisponde al nome cercato: frazione delle parole cercate trovate nel nome della riga. */
-function nameMatchScore(rowName: string, targetName: string): number {
+export function nameMatchScore(rowName: string, targetName: string): number {
   const target = nameWords(targetName);
   if (target.length === 0) return 0;
   const row = new Set(nameWords(rowName));
@@ -384,6 +386,7 @@ export function parseShiftGrid(
     return {
       detectedShifts: [],
       warnings: ["Nessuna tabella riconosciuta nel documento: prova con una foto piu' nitida o un altro formato."],
+      coverage: 0,
     };
   }
 
@@ -398,6 +401,7 @@ export function parseShiftGrid(
             : "Questo documento contiene i turni di piu' persone: scegli il tuo nome dalla lista.",
         ],
         candidateNames: roster.candidateNames,
+        coverage: 0,
       };
     }
     const totalDays = daysInMonth(target);
@@ -407,7 +411,7 @@ export function parseShiftGrid(
         `Riconosciuti solo ${roster.detectedShifts.length} giorni su ${totalDays}: controlla e completa manualmente i turni mancanti.`,
       );
     }
-    return { detectedShifts: roster.detectedShifts, warnings };
+    return { detectedShifts: roster.detectedShifts, warnings, coverage };
   }
 
   const combined = parseCombinedCells(tables, target);
@@ -431,5 +435,5 @@ export function parseShiftGrid(
     );
   }
 
-  return { detectedShifts, warnings };
+  return { detectedShifts, warnings, coverage };
 }
