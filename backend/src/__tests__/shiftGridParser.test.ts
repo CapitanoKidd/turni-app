@@ -88,4 +88,47 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-03"), undefined);
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-01")?.rawCode, "1", "l'annotazione '4O' non deve finire nel codice");
   });
+
+  it("recupera i giorni spezzati su una riga di intestazione diversa (caso reale: weekend/lunedi' fusi con il numero di settimana)", () => {
+    // Struttura osservata davvero da Azure su un documento reale: la riga
+    // "principale" dei giorni (con la sequenza piu' lunga, qui i giorni
+    // dispari) ha dei buchi per i giorni pari, che finiscono invece su una
+    // riga diversa sopra, a volte fusi col numero di settimana (es. "33 10").
+    const mainRow: TableCell[] = []; // riga "principale" trovata da findDayAxis: serve una sequenza lunga e consecutiva
+    const auxRow: TableCell[] = []; // riga ausiliaria sopra, dove finiscono i giorni "spaiati"
+    for (let day = 1; day <= 31; day++) {
+      const columnIndex = day + 2; // colonne 0-1 riservate a nome/percentuale
+      if (day <= 20) {
+        mainRow.push({ rowIndex: 2, columnIndex, text: String(day) });
+      } else if (day === 24) {
+        auxRow.push({ rowIndex: 0, columnIndex, text: "35 Mo 24" }); // caso "fuso" col numero di settimana
+      } else {
+        auxRow.push({ rowIndex: 0, columnIndex, text: `Xx ${String(day).padStart(2, "0")}` });
+      }
+    }
+    // Colonna di riepilogo fuori dalla griglia dei giorni: non deve MAI essere scambiata per un giorno.
+    const summaryColumn: TableCell = { rowIndex: 2, columnIndex: 40, text: "Soll Aug.26" };
+
+    const dataRow: TableCell[] = [
+      { rowIndex: 3, columnIndex: 0, text: "Mario Rossi" },
+      ...Array.from({ length: 31 }, (_, i) => ({ rowIndex: 3, columnIndex: i + 3, text: "M" })),
+    ];
+
+    const table: ExtractedTable = {
+      rowCount: 4,
+      columnCount: 41,
+      cells: [...auxRow, ...mainRow, summaryColumn, ...dataRow],
+    };
+
+    const result = parseShiftGrid([table], TARGET_2026_08, "Mario Rossi");
+
+    assert.equal(result.detectedShifts.length, 31, "tutti i 31 giorni devono essere recuperati, non solo quelli sulla riga principale");
+
+    const day26 = result.detectedShifts.filter((s) => s.date === "2026-08-26");
+    assert.equal(day26.length, 1, "la colonna di riepilogo 'Soll Aug.26' non deve creare un turno duplicato per il 26");
+    assert.equal(day26[0].rawCode, "M");
+
+    const day24 = result.detectedShifts.find((s) => s.date === "2026-08-24");
+    assert.equal(day24?.rawCode, "M", "il giorno fuso col numero di settimana ('35 Mo 24') deve comunque essere riconosciuto");
+  });
 });

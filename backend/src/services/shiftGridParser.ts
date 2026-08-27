@@ -45,13 +45,18 @@ function parseDayNumber(text: string): number | null {
 }
 
 /**
- * Estrae un numero di giorno anche da celle di intestazione con piu' righe
- * (es. "Sa\n01", "Lun 1"): prende l'ultimo numero di 1-2 cifre presente nel
- * testo, cosi' funziona sia con celle "pulite" (solo il numero) sia con
- * celle che hanno anche il giorno della settimana sopra o affiancato.
+ * Estrae un numero di giorno da celle di intestazione anche "composte", tipo
+ * "Sa\n01", "Lun 1", o "33 Mo 10" (numero di settimana + giorno della
+ * settimana + numero, unito da Azure in un'unica cella ai confini tra due
+ * settimane). Richiede pero' che l'INTERO testo della cella sia solo
+ * "numero di settimana opzionale + giorno della settimana opzionale + numero
+ * di giorno": questo evita falsi positivi su celle di riepilogo come
+ * "Soll Aug.26" (che finirebbe altrimenti riconosciuta come giorno 26).
  */
 function extractTrailingDayNumber(text: string): number | null {
-  const match = text.trim().match(/(\d{1,2})\s*$/);
+  const match = text
+    .trim()
+    .match(/^(?:\d{1,2}\s+)?(?:[A-Za-zÀ-ÿ]{1,3}\.?\s+)?(\d{1,2})\s*$/);
   if (!match) return null;
   const value = Number(match[1]);
   return value >= 1 && value <= 31 ? value : null;
@@ -244,10 +249,19 @@ function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTa
   const headerRowIndex = findDayAxis(byRow, totalDays);
   if (headerRowIndex === null) return null;
 
+  // Alcune turnistiche spezzano l'intestazione dei giorni su piu' righe (es.
+  // weekend e settimane a cavallo finiscono su una riga diversa da quella
+  // principale). Si fondono percio' un paio di righe sopra a quella
+  // "principale" (trovata da findDayAxis): le colonne mancanti nella riga
+  // principale vengono recuperate da li', quella principale ha comunque
+  // sempre l'ultima parola in caso di conflitto.
+  const HEADER_ROW_WINDOW = 3;
   const dayByColumn = new Map<number, number>();
-  for (const cell of byRow.get(headerRowIndex) ?? []) {
-    const day = extractTrailingDayNumber(cell.text);
-    if (day !== null) dayByColumn.set(cell.columnIndex, day);
+  for (let rowIndex = Math.max(0, headerRowIndex - HEADER_ROW_WINDOW + 1); rowIndex <= headerRowIndex; rowIndex++) {
+    for (const cell of byRow.get(rowIndex) ?? []) {
+      const day = extractTrailingDayNumber(cell.text);
+      if (day !== null) dayByColumn.set(cell.columnIndex, day);
+    }
   }
   if (dayByColumn.size < 5) return null; // troppo poche colonne-giorno per essere una turnistica del mese
 

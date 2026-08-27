@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { DayShiftSheet } from "../../components/DayShiftSheet";
 import { MonthCalendar } from "../../components/MonthCalendar";
 import { MonthSummary } from "../../components/MonthSummary";
 import { ShiftLegend } from "../../components/ShiftLegend";
-import { cancelAlarmsForDates, scheduleAlarmsForEntries } from "../../lib/notifications";
+import { cancelAlarmsForDates, cancelAllAlarms, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
 import type { AppSettings, CalendarEntries, ShiftType } from "../../lib/types";
@@ -65,6 +65,26 @@ export default function CalendarScreen() {
   }
 
   const hasShifts = Object.keys(entries).some((date) => date.startsWith(`${year}-${String(month).padStart(2, "0")}`));
+  const hasAnyEntries = Object.keys(entries).length > 0;
+
+  function handleResetCalendar() {
+    Alert.alert(
+      "Cancellare tutti i turni?",
+      "Verranno rimossi i turni di TUTTI i mesi (non solo quello attuale) e le sveglie collegate. I tipi di turno che hai creato restano, potrai riassegnarli caricando di nuovo la griglia.",
+      [
+        { text: "Annulla", style: "cancel" },
+        {
+          text: "Cancella tutto",
+          style: "destructive",
+          onPress: async () => {
+            await storage.saveCalendarEntries({});
+            await cancelAllAlarms();
+            setEntries({});
+          },
+        },
+      ],
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -100,6 +120,11 @@ export default function CalendarScreen() {
           {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
           <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
           {settings?.legendVisible ? <ShiftLegend shiftTypes={shiftTypes} /> : null}
+          {hasAnyEntries ? (
+            <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
+              <Text style={styles.resetButtonText}>Cancella tutti i turni</Text>
+            </TouchableOpacity>
+          ) : null}
         </>
       )}
 
@@ -149,4 +174,6 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   emptyButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  resetButton: { alignItems: "center", paddingVertical: theme.spacing.sm },
+  resetButtonText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
 });
