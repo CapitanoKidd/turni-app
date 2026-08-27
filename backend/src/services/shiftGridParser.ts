@@ -72,9 +72,14 @@ function extractPrimaryCode(text: string): string {
   return firstToken;
 }
 
-/** true se la cella indica esplicitamente "nessun turno" (trattino/placeholder) invece di un codice vero. */
+/**
+ * true solo se la cella e' vuota. Un trattino o simile (spesso usato per
+ * indicare "riposo") viene trattato come un codice a tutti gli effetti:
+ * sara' l'utente a definirlo nella revisione, esattamente come per "M" o
+ * "R" — l'app non decide da sola cosa significa un simbolo del foglio.
+ */
 function isBlankMarker(code: string): boolean {
-  return code.length === 0 || /^[-–—_.]+$/.test(code);
+  return code.length === 0;
 }
 
 function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {

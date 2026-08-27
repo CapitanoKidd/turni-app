@@ -51,7 +51,7 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
     assert.deepEqual(new Set(result.candidateNames), new Set(["Aitoro Monica", "Vannucci M. Cristina"]));
   });
 
-  it("gestisce intestazioni miste (giorno della settimana + numero nella stessa cella), annotazioni sotto al codice e trattini per 'nessun turno'", () => {
+  it("gestisce intestazioni miste (giorno della settimana + numero nella stessa cella), annotazioni sotto al codice e trattini passati cosi' come sono", () => {
     const weekdays = ["Sa", "So", "Mo", "Di", "Mi", "Do", "Fr"];
     const headerRow = 3;
     const header: TableCell[] = Array.from({ length: 31 }, (_, i) => ({
@@ -84,8 +84,8 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
 
     const result = parseShiftGrid([table], TARGET_2026_08, "Monica Aitoro");
 
-    assert.equal(result.detectedShifts.length, 22, "3 giorni con trattino non devono generare un turno finto");
-    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-03"), undefined);
+    assert.equal(result.detectedShifts.length, 31, "anche i giorni con trattino vanno riconosciuti: sara' l'utente a definirli (es. come riposo)");
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-03")?.rawCode, "–", "il trattino va passato cosi' com'e', non scartato");
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-01")?.rawCode, "1", "l'annotazione '4O' non deve finire nel codice");
   });
 

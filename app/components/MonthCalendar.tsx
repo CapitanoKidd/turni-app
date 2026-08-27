@@ -52,6 +52,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPres
 
           const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
           const isToday = cell.iso === todayIso;
+          const isWorkingShift = shiftType && !shiftType.isRestDay;
 
           return (
             <TouchableOpacity
@@ -59,15 +60,19 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPres
               style={[
                 styles.cell,
                 styles.dayCell,
-                shiftType ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
+                isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
+                shiftType?.isRestDay && styles.restDayCell,
                 isToday && styles.todayBorder,
               ]}
               onPress={() => onDayPress(cell.iso)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.dayNumber, shiftType && styles.dayNumberOnShift]}>{cell.day}</Text>
+              <Text style={[styles.dayNumber, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
               {shiftType ? (
-                <Text numberOfLines={1} style={styles.shiftLabel}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.shiftLabel, !isWorkingShift && styles.shiftLabelMuted]}
+                >
                   {shiftType.label}
                 </Text>
               ) : null}
@@ -99,8 +104,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   emptyDayCell: { backgroundColor: theme.colors.surface },
+  // Un giorno di riposo non ha il colore pieno di un turno: deve leggersi
+  // subito come "non si lavora", non confondersi con un turno vero.
+  restDayCell: { borderWidth: 1, borderColor: theme.colors.border, borderStyle: "dashed" },
   todayBorder: { borderWidth: 2, borderColor: theme.colors.primary },
   dayNumber: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
   dayNumberOnShift: { color: "#0B1220" },
   shiftLabel: { color: "#0B1220", fontSize: 10, fontWeight: "700", maxWidth: "90%" },
+  shiftLabelMuted: { color: theme.colors.textMuted },
 });
