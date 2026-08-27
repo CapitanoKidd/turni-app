@@ -42,6 +42,34 @@ function parseDayNumber(text: string): number | null {
   return value >= 1 && value <= 31 ? value : null;
 }
 
+/**
+ * Estrae un numero di giorno anche da celle di intestazione con piu' righe
+ * (es. "Sa\n01", "Lun 1"): prende l'ultimo numero di 1-2 cifre presente nel
+ * testo, cosi' funziona sia con celle "pulite" (solo il numero) sia con
+ * celle che hanno anche il giorno della settimana sopra o affiancato.
+ */
+function extractTrailingDayNumber(text: string): number | null {
+  const match = text.trim().match(/(\d{1,2})\s*$/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return value >= 1 && value <= 31 ? value : null;
+}
+
+/**
+ * Prende solo il "codice" principale di una cella turno, scartando eventuali
+ * annotazioni su una riga separata sotto al codice (es. "1\n4O" -> "1",
+ * "UU\n5O" -> "UU") — comune nei fogli con percentuali/note sotto il turno.
+ */
+function extractPrimaryCode(text: string): string {
+  const firstToken = text.trim().split(/\s+/)[0] ?? "";
+  return firstToken;
+}
+
+/** true se la cella indica esplicitamente "nessun turno" (trattino/placeholder) invece di un codice vero. */
+function isBlankMarker(code: string): boolean {
+  return code.length === 0 || /^[-–—_.]+$/.test(code);
+}
+
 function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
   const map = new Map<K, T[]>();
   for (const item of items) {
@@ -53,18 +81,40 @@ function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
   return map;
 }
 
-/** Trova la riga/colonna dove piu' della meta' delle celle non vuote sono numeri di giorno validi, preferendo quella con piu' corrispondenze (es. la vera riga dei giorni batte righe di riepilogo piu' corte). */
-function findDayAxis(groups: Map<number, TableCell[]>, totalDays: number): number | null {
+const MIN_DAY_SEQUENCE_RUN = 5;
+
+/**
+ * Trova la riga/colonna dei giorni cercando la piu' lunga sequenza di numeri
+ * consecutivi crescenti (1, 2, 3, 4...) tra le celle ordinate per posizione.
+ * E' un segnale molto piu' affidabile del "conta quante celle sono un
+ * numero valido": una riga di turni piena di codici numerici come "1", "2",
+ * "3" avrebbe anche lei molte celle che sembrano giorni validi, ma i suoi
+ * valori non sono mai in ordine crescente come lo sono i giorni del mese.
+ */
+function findDayAxis(groups: Map<number, TableCell[]>, _totalDays: number): number | null {
   let bestIndex: number | null = null;
-  let bestScore = 0;
+  let bestRun = 0;
 
   for (const [index, cells] of groups) {
-    const nonEmpty = cells.filter((c) => c.text.trim().length > 0);
-    if (nonEmpty.length === 0) continue;
-    const dayLike = nonEmpty.filter((c) => parseDayNumber(c.text) !== null).length;
-    const score = dayLike / nonEmpty.length;
-    if (score > 0.5 && dayLike > bestScore) {
-      bestScore = dayLike;
+    const sorted = [...cells].sort((a, b) => a.columnIndex - b.columnIndex || a.rowIndex - b.rowIndex);
+    let currentRun = 0;
+    let longestRun = 0;
+    let previous: number | null = null;
+
+    for (const cell of sorted) {
+      const day = extractTrailingDayNumber(cell.text);
+      if (day === null) {
+        currentRun = 0;
+        previous = null;
+        continue;
+      }
+      currentRun = previous !== null && day === previous + 1 ? currentRun + 1 : 1;
+      previous = day;
+      longestRun = Math.max(longestRun, currentRun);
+    }
+
+    if (longestRun >= MIN_DAY_SEQUENCE_RUN && longestRun > bestRun) {
+      bestRun = longestRun;
       bestIndex = index;
     }
   }
@@ -138,11 +188,11 @@ function matchAxisPairs(
   const results: DetectedShift[] = [];
 
   for (const dayCell of dayCells) {
-    const day = parseDayNumber(dayCell.text);
+    const day = extractTrailingDayNumber(dayCell.text);
     if (day === null || day > totalDays) continue;
     const codeCell = codeByPosition.get(dayCell[perpendicularKey]);
-    const code = codeCell?.text.trim();
-    if (!code) continue;
+    const code = codeCell ? extractPrimaryCode(codeCell.text) : "";
+    if (isBlankMarker(code)) continue;
     results.push({ date: toIsoDate(target, day), rawCode: code.toUpperCase(), confidence: 0.6 });
   }
 
@@ -194,7 +244,7 @@ function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTa
 
   const dayByColumn = new Map<number, number>();
   for (const cell of byRow.get(headerRowIndex) ?? []) {
-    const day = parseDayNumber(cell.text);
+    const day = extractTrailingDayNumber(cell.text);
     if (day !== null) dayByColumn.set(cell.columnIndex, day);
   }
   if (dayByColumn.size < 5) return null; // troppo poche colonne-giorno per essere una turnistica del mese
@@ -243,13 +293,23 @@ function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTa
 
 function extractRowShifts(roster: RosterTable, rowIndex: number, target: TargetMonth): DetectedShift[] {
   const cellsInRow = roster.table.cells.filter((c) => c.rowIndex === rowIndex);
-  const byColumn = new Map(cellsInRow.map((c) => [c.columnIndex, c.text.trim()]));
+  const byColumn = new Map(cellsInRow.map((c) => [c.columnIndex, c.text]));
+  const seenDates = new Set<string>();
   const results: DetectedShift[] = [];
 
   for (const [columnIndex, day] of roster.dayByColumn) {
-    const code = byColumn.get(columnIndex);
-    if (!code) continue;
-    results.push({ date: toIsoDate(target, day), rawCode: code.toUpperCase(), confidence: 0.85 });
+    const rawText = byColumn.get(columnIndex);
+    if (!rawText) continue;
+    // Il codice vero e' la prima riga della cella: alcune turnistiche mettono
+    // un'annotazione (es. una percentuale) su una seconda riga sotto al codice.
+    const code = extractPrimaryCode(rawText);
+    if (isBlankMarker(code)) continue; // "-" o simili: nessun turno quel giorno
+
+    const date = toIsoDate(target, day);
+    if (seenDates.has(date)) continue; // due colonne non dovrebbero mai indicare lo stesso giorno
+    seenDates.add(date);
+
+    results.push({ date, rawCode: code.toUpperCase(), confidence: 0.85 });
   }
 
   return results;

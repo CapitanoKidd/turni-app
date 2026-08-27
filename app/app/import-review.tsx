@@ -133,10 +133,10 @@ export default function ImportReviewScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Anteprima</Text>
-        {detectedShifts.map((shift) => {
+        {detectedShifts.map((shift, index) => {
           const shiftType = shiftTypeByLabel.get(shift.rawCode.trim().toUpperCase());
           return (
-            <View key={shift.date} style={styles.previewRow}>
+            <View key={`${shift.date}-${index}`} style={styles.previewRow}>
               <Text style={styles.previewDate}>{formatDayLabel(shift.date)}</Text>
               <View style={styles.previewShift}>
                 {shiftType ? <View style={[styles.dot, { backgroundColor: shiftType.color }]} /> : null}
