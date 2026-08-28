@@ -47,6 +47,38 @@ function pickBetterAttempt(a: Attempt, b: Attempt): Attempt {
 }
 
 /**
+ * Unisce due risultati per lo STESSO documento (es. lettura diretta e
+ * rasterizzata della stessa pagina): tiene tutti i turni del primo e
+ * riempie solo le date mancanti con quelli del secondo. Meglio di "prendi
+ * il migliore dei due" quando un tentativo trova alcuni giorni che
+ * all'altro sfuggono e viceversa (es. celle che l'estrazione diretta lascia
+ * vuote ma che l'OCR sull'immagine legge correttamente, o viceversa).
+ */
+function mergeShiftResults(
+  primary: ShiftGridParseResult,
+  secondary: ShiftGridParseResult,
+  totalDays: number,
+): ShiftGridParseResult {
+  if (primary.candidateNames && primary.candidateNames.length > 0) return primary;
+
+  const byDate = new Map(primary.detectedShifts.map((s) => [s.date, s]));
+  for (const shift of secondary.detectedShifts) {
+    if (!byDate.has(shift.date)) byDate.set(shift.date, shift);
+  }
+
+  const detectedShifts = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const coverage = detectedShifts.length / totalDays;
+  const warnings =
+    coverage < LOW_COVERAGE_THRESHOLD
+      ? [
+          `Riconosciuti solo ${detectedShifts.length} giorni su ${totalDays} anche unendo lettura diretta e rasterizzata: controlla e completa manualmente i turni mancanti.`,
+        ]
+      : [];
+
+  return { detectedShifts, warnings, coverage };
+}
+
+/**
  * Risolve i turni di un PDF processando il meno possibile:
  * 1. Cerca localmente (gratis, nessuna chiamata Azure) la pagina che
  *    contiene il nome dell'utente, usando il testo vero incorporato nel PDF.
@@ -80,17 +112,26 @@ export async function resolvePdfShiftResult(
     const direct: Attempt = { tables: directTables, result: parseShiftGrid(directTables, target, staffName) };
     debug.push(`analisi diretta pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(direct.result.coverage * 100)}%`);
 
-    if (!isWeakResult(direct.result)) {
+    const hasAmbiguousName = (direct.result.candidateNames?.length ?? 0) > 0;
+    if (hasAmbiguousName || direct.result.coverage >= 1) {
       return { ...direct, debug };
     }
 
-    debug.push(`copertura scarsa: rasterizzo solo la pagina ${staffPage.pageIndex + 1} e riprovo`);
+    // Anche con una copertura gia' accettabile puo' mancare qualche giorno
+    // (celle che l'estrazione diretta lascia vuote): si prova comunque la
+    // stessa pagina rasterizzata, costa una sola pagina Azure in piu', e si
+    // uniscono i due risultati invece di scartarne uno intero.
+    debug.push(`copertura non completa: rasterizzo comunque la pagina ${staffPage.pageIndex + 1} per completare i giorni mancanti`);
     const rasterizedPng = await rasterizePage(buffer, staffPage.pageIndex);
     const rasterizedTables = await provider.extractTables(rasterizedPng, PNG_MIME);
-    const rasterized: Attempt = { tables: rasterizedTables, result: parseShiftGrid(rasterizedTables, target, staffName) };
-    debug.push(`analisi rasterizzata pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(rasterized.result.coverage * 100)}%`);
+    const rasterizedResult = parseShiftGrid(rasterizedTables, target, staffName);
+    debug.push(`analisi rasterizzata pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(rasterizedResult.coverage * 100)}%`);
 
-    return { ...pickBetterAttempt(direct, rasterized), debug };
+    const totalDays = new Date(target.year, target.month1To12, 0).getDate();
+    const merged = mergeShiftResults(direct.result, rasterizedResult, totalDays);
+    debug.push(`risultato unito (diretta + rasterizzata): copertura ${Math.round(merged.coverage * 100)}%`);
+
+    return { result: merged, tables: [...direct.tables, ...rasterizedTables], debug };
   }
 
   debug.push(
