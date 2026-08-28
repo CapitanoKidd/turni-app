@@ -2,6 +2,7 @@ import { findStaffPage } from "./findStaffPage.js";
 import { fillGapsFromCellImages } from "./fillGapsFromCellImages.js";
 import type { ExtractedTable, OcrProvider, RecognizedWord } from "./ocr/types.js";
 import { extractSinglePagePdf, rasterizeAllPages, rasterizePage } from "./pdfRasterizer.js";
+import { readShiftsFromPdfText } from "./readShiftsFromPdfText.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "./shiftGridParser.js";
 
 export const PDF_MIME = "application/pdf";
@@ -73,6 +74,24 @@ export async function resolvePdfShiftResult(
     debug.push(
       `pagina ${staffPage.pageIndex + 1} trovata localmente per "${staffName}" (punteggio ${staffPage.score.toFixed(2)}) — nessun costo`,
     );
+
+    // Prima di spendere: se i codici turno sono TESTO dentro il PDF li
+    // leggiamo qui, gratis ed esattamente. Nessuna chiamata al servizio.
+    const fromText = await readShiftsFromPdfText(buffer, staffPage.pageIndex, target, staffName);
+    if (fromText) {
+      debug.push(
+        `turni letti direttamente dal testo del PDF: ${fromText.detectedShifts.length} giorni (${Math.round(fromText.coverage * 100)}%) — NESSUNA chiamata ad Azure`,
+      );
+      return {
+        result: { detectedShifts: fromText.detectedShifts, warnings: [], coverage: fromText.coverage },
+        tables: [],
+        debug,
+        sentPreviewImages: options.debug ? [await rasterizePage(buffer, staffPage.pageIndex)] : [],
+        recognizedWords: [],
+        unresolvedCells: [],
+      };
+    }
+    debug.push("i codici turno non sono testo nel PDF: serve l'analisi");
 
     const singlePagePdf = await extractSinglePagePdf(buffer, staffPage.pageIndex);
     debug.push(`inviata ad Azure: SOLO la pagina ${staffPage.pageIndex + 1}, in formato PDF (1 chiamata)`);

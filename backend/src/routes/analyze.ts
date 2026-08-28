@@ -11,11 +11,22 @@ import { parseShiftGrid, withEveryDayOfMonth, type ShiftGridParseResult } from "
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_DEBUG_IMAGES = 5; // limite di sicurezza: un documento con molte pagine non deve gonfiare a dismisura la risposta
 
+/**
+ * Limite per indirizzo IP. Va inteso per quello che e': un dosso contro gli
+ * script, non un cancello — chi abusa cambia IP, e un limite troppo stretto
+ * bloccherebbe utenti veri, perche' gli operatori mobili fanno condividere lo
+ * stesso IP pubblico a moltissimi clienti.
+ *
+ * Il valore e' calibrato sull'uso reale: un piano turni si carica una volta al
+ * mese, quindi 10 all'ora e' larghissimo per una persona e stretto per uno
+ * script (da ~2880 al giorno a 240).
+ */
 const analyzeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30, // 30 analisi ogni 15 minuti per IP: protegge la chiave Azure da abusi
+  windowMs: 60 * 60 * 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, error: "Troppe analisi in poco tempo: riprova fra un'ora." },
 });
 
 export const analyzeRouter = Router();
