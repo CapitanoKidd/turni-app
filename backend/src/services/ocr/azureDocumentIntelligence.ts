@@ -1,4 +1,4 @@
-import type { ExtractedTable, OcrProvider, TableCell } from "./types.js";
+import type { ExtractedTable, OcrProvider, RecognizedWord, TableCell } from "./types.js";
 
 const API_VERSION = "2024-11-30";
 const MODEL_ID = "prebuilt-layout";
@@ -8,13 +8,44 @@ const MAX_POLL_ATTEMPTS = 40; // ~1 minuto di attesa massima
 interface AzureAnalyzeResultTable {
   rowCount: number;
   columnCount: number;
-  cells: Array<{ rowIndex: number; columnIndex: number; content: string }>;
+  cells: Array<{
+    rowIndex: number;
+    columnIndex: number;
+    content: string;
+    columnSpan?: number;
+    rowSpan?: number;
+  }>;
+}
+
+/** Una parola riconosciuta, come la restituisce Azure: polygon = 4 vertici (8 numeri) nell'ordine x,y. */
+interface AzureWord {
+  content: string;
+  confidence?: number;
+  polygon?: number[];
+}
+
+interface AzurePage {
+  pageNumber: number;
+  words?: AzureWord[];
 }
 
 interface AzurePollResponse {
   status: "notStarted" | "running" | "succeeded" | "failed";
-  analyzeResult?: { tables?: AzureAnalyzeResultTable[] };
+  analyzeResult?: { tables?: AzureAnalyzeResultTable[]; pages?: AzurePage[] };
   error?: { message?: string };
+}
+
+/** Centro del poligono che circonda la parola: basta la media dei vertici. */
+function polygonCenter(polygon: number[] | undefined): { x: number; y: number } {
+  if (!polygon || polygon.length < 2) return { x: 0, y: 0 };
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i + 1 < polygon.length; i += 2) {
+    sx += polygon[i];
+    sy += polygon[i + 1];
+  }
+  const points = Math.floor(polygon.length / 2);
+  return { x: sx / points, y: sy / points };
 }
 
 /**
@@ -24,7 +55,19 @@ interface AzurePollResponse {
  * https://learn.microsoft.com/azure/ai-services/document-intelligence/
  */
 export class AzureDocumentIntelligenceProvider implements OcrProvider {
+  /**
+   * Parole riconosciute nell'ultima analisi. Azure le manda insieme alle
+   * tabelle, nella stessa risposta della stessa chiamata: tenerle non costa
+   * nulla, e permette di capire se una cella risultata vuota e' stata
+   * davvero "non vista" dall'OCR o solo non assegnata alla cella giusta.
+   */
+  private lastWords: RecognizedWord[] = [];
+
   constructor(private readonly endpoint: string, private readonly apiKey: string) {}
+
+  getLastRecognizedWords(): RecognizedWord[] {
+    return this.lastWords;
+  }
 
   async extractTables(buffer: Buffer, mimeType: string): Promise<ExtractedTable[]> {
     const analyzeUrl = `${this.trimEndpoint()}/documentintelligence/documentModels/${MODEL_ID}:analyze?api-version=${API_VERSION}`;
@@ -51,6 +94,19 @@ export class AzureDocumentIntelligenceProvider implements OcrProvider {
     const result = await this.poll(operationLocation);
     const tables = result.analyzeResult?.tables ?? [];
 
+    this.lastWords = (result.analyzeResult?.pages ?? []).flatMap((page) =>
+      (page.words ?? []).map((word): RecognizedWord => {
+        const { x, y } = polygonCenter(word.polygon);
+        return {
+          text: word.content,
+          confidence: word.confidence ?? 0,
+          x,
+          y,
+          pageNumber: page.pageNumber,
+        };
+      }),
+    );
+
     return tables.map((table): ExtractedTable => ({
       rowCount: table.rowCount,
       columnCount: table.columnCount,
@@ -58,6 +114,8 @@ export class AzureDocumentIntelligenceProvider implements OcrProvider {
         rowIndex: cell.rowIndex,
         columnIndex: cell.columnIndex,
         text: cell.content ?? "",
+        columnSpan: cell.columnSpan,
+        rowSpan: cell.rowSpan,
       })),
     }));
   }

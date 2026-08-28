@@ -1,5 +1,5 @@
 import { findStaffPage } from "./findStaffPage.js";
-import type { ExtractedTable, OcrProvider } from "./ocr/types.js";
+import type { ExtractedTable, OcrProvider, RecognizedWord } from "./ocr/types.js";
 import { extractSinglePagePdf, rasterizeAllPages, rasterizePage } from "./pdfRasterizer.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "./shiftGridParser.js";
 
@@ -21,6 +21,13 @@ export interface PdfRoutingOutcome {
    * server per poterle guardare. Non costano nessuna chiamata ad Azure.
    */
   sentPreviewImages: Buffer[];
+  /**
+   * Le parole che l'OCR dice di aver riconosciuto, con la loro confidenza.
+   * Arrivano nella stessa risposta delle tabelle (nessuna chiamata in piu').
+   * Servono a capire se una cella vuota e' "non vista" o "vista ma non
+   * assegnata alla cella".
+   */
+  recognizedWords: RecognizedWord[];
 }
 
 export interface PdfRoutingOptions {
@@ -68,7 +75,7 @@ export async function resolvePdfShiftResult(
     debug.push(`Azure ha restituito ${tables.length} tabella/e — copertura ${Math.round(result.coverage * 100)}%`);
 
     const sentPreviewImages = options.debug ? [await rasterizePage(singlePagePdf, 0)] : [];
-    return { result, tables, debug, sentPreviewImages };
+    return { result, tables, debug, sentPreviewImages, recognizedWords: provider.getLastRecognizedWords?.() ?? [] };
   }
 
   debug.push(
@@ -85,5 +92,5 @@ export async function resolvePdfShiftResult(
   const sentPreviewImages = options.debug
     ? (await rasterizeAllPages(buffer)).slice(0, MAX_PREVIEW_PAGES)
     : [];
-  return { result, tables, debug, sentPreviewImages };
+  return { result, tables, debug, sentPreviewImages, recognizedWords: provider.getLastRecognizedWords?.() ?? [] };
 }

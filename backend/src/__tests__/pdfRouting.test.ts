@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ExtractedTable, OcrProvider, TableCell } from "../services/ocr/types.js";
+import type { ExtractedTable, OcrProvider, RecognizedWord, TableCell } from "../services/ocr/types.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { makeTestPdf } from "./fixtures/testPdf.js";
 
@@ -99,6 +99,34 @@ describe("resolvePdfShiftResult", () => {
 
     assert.equal(provider.calls.length, 1);
     assert.ok(result.detectedShifts.length > 0 || (result.candidateNames?.length ?? 0) > 0);
+  });
+
+  it("riporta le parole riconosciute dall'OCR quando il provider le espone, e regge un provider che non le espone", async () => {
+    const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
+
+    class ProviderWithWords extends FakeOcrProvider {
+      getLastRecognizedWords(): RecognizedWord[] {
+        return [{ text: "-", confidence: 0.31, x: 1.5, y: 2.5, pageNumber: 1 }];
+      }
+    }
+
+    const withWords = await resolvePdfShiftResult(
+      pdf,
+      TARGET_2026_08,
+      "Mario Rossi",
+      new ProviderWithWords([[rosterTable("Mario Rossi", "M")]]),
+    );
+    assert.equal(withWords.recognizedWords.length, 1);
+    assert.equal(withWords.recognizedWords[0].confidence, 0.31);
+
+    // Un provider che non espone le parole (es. il mock) non deve rompere nulla.
+    const withoutWords = await resolvePdfShiftResult(
+      pdf,
+      TARGET_2026_08,
+      "Mario Rossi",
+      new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]),
+    );
+    assert.deepEqual(withoutWords.recognizedWords, []);
   });
 
   it("senza modalita' debug non genera nessuna anteprima; con il debug attivo genera l'anteprima di cio' che e' stato inviato", async () => {

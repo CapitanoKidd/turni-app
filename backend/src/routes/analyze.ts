@@ -4,7 +4,7 @@ import { upload } from "../middleware/upload.js";
 import { extractTablesFromDocx } from "../services/docxTableExtractor.js";
 import { AzureDocumentIntelligenceProvider } from "../services/ocr/azureDocumentIntelligence.js";
 import { MockOcrProvider } from "../services/ocr/mockProvider.js";
-import type { ExtractedTable, OcrProvider } from "../services/ocr/types.js";
+import type { ExtractedTable, OcrProvider, RecognizedWord } from "../services/ocr/types.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { parseShiftGrid, withEveryDayOfMonth, type ShiftGridParseResult } from "../services/shiftGridParser.js";
 
@@ -55,7 +55,10 @@ function formatTablesForDebug(tables: ExtractedTable[]): string {
       const byRow = new Map<number, Map<number, string>>();
       for (const cell of table.cells) {
         if (!byRow.has(cell.rowIndex)) byRow.set(cell.rowIndex, new Map());
-        byRow.get(cell.rowIndex)?.set(cell.columnIndex, cell.text.replace(/\n/g, "⏎"));
+        // Una cella che ne occupa piu' d'una viene segnalata: spiegherebbe
+        // perche' le colonne accanto risultano vuote.
+        const span = (cell.columnSpan ?? 1) > 1 ? `[occupa ${cell.columnSpan} colonne]` : "";
+        byRow.get(cell.rowIndex)?.set(cell.columnIndex, cell.text.replace(/\n/g, "⏎") + span);
       }
 
       const rowIndexes = [...byRow.keys()].sort((a, b) => a - b);
@@ -70,6 +73,33 @@ function formatTablesForDebug(tables: ExtractedTable[]): string {
       return `Tabella ${tableIndex + 1} (${table.rowCount} righe x ${table.columnCount} colonne):\n${lines.join("\n")}`;
     })
     .join("\n\n");
+}
+
+/**
+ * Riassume cosa l'OCR dice di aver riconosciuto, con la confidenza piu'
+ * bassa in evidenza. Serve a rispondere alla domanda: quando una cella
+ * risulta vuota, l'OCR quel segno non l'ha proprio visto, oppure l'ha visto
+ * (magari con poca sicurezza) e non l'ha messo nella cella?
+ */
+function formatRecognizedWordsForDebug(words: RecognizedWord[]): string {
+  if (words.length === 0) {
+    return "(l'OCR non ha restituito nessuna parola: o il documento e' stato letto come testo gia' presente nel PDF, oppure non ha riconosciuto nulla visivamente)";
+  }
+
+  const sorted = [...words].sort((a, b) => a.confidence - b.confidence);
+  const lowest = sorted.slice(0, 25);
+  const avg = words.reduce((sum, w) => sum + w.confidence, 0) / words.length;
+  const weak = words.filter((w) => w.confidence < 0.5).length;
+
+  const lines = lowest.map(
+    (w) => `  "${w.text}" — sicurezza ${(w.confidence * 100).toFixed(0)}% (pagina ${w.pageNumber}, x=${w.x.toFixed(2)} y=${w.y.toFixed(2)})`,
+  );
+
+  return [
+    `Parole riconosciute in totale: ${words.length} — sicurezza media ${(avg * 100).toFixed(0)}%, sotto il 50%: ${weak}`,
+    "Le 25 riconosciute con meno sicurezza:",
+    ...lines,
+  ].join("\n");
 }
 
 analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req, res) => {
@@ -89,6 +119,7 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     let routingDebug: string[] = [];
     let debugTables: ExtractedTable[] = [];
     let sentPreviewImages: Buffer[] = [];
+    let recognizedWords: RecognizedWord[] = [];
 
     if (file.mimetype === DOCX_MIME) {
       debugTables = await extractTablesFromDocx(file.buffer);
@@ -102,6 +133,7 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       routingDebug = outcome.debug;
       debugTables = outcome.tables;
       sentPreviewImages = outcome.sentPreviewImages;
+      recognizedWords = outcome.recognizedWords;
     } else {
       debugTables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
       result = parseShiftGrid(debugTables, target, staffName);
@@ -134,8 +166,11 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
               "=== COSA ABBIAMO FATTO ===",
               ...routingDebug,
               "",
-              "=== COSA AZURE CI HA RISPOSTO ===",
+              "=== COSA AZURE CI HA RISPOSTO (tabelle) ===",
               formatTablesForDebug(debugTables),
+              "",
+              "=== COSA AZURE DICE DI AVER VISTO (parole + sicurezza) ===",
+              formatRecognizedWordsForDebug(recognizedWords),
             ].join("\n"),
             // Anteprima di cio' che e' stato inviato ad Azure. Ad Azure va un
             // PDF, non un'immagine: queste sono le stesse pagine inviate,
