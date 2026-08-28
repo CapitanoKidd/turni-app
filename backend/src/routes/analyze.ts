@@ -88,18 +88,20 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     let result: ShiftGridParseResult;
     let routingDebug: string[] = [];
     let debugTables: ExtractedTable[] = [];
-    let rasterizedImages: Buffer[] = [];
+    let sentPreviewImages: Buffer[] = [];
 
     if (file.mimetype === DOCX_MIME) {
       debugTables = await extractTablesFromDocx(file.buffer);
       result = parseShiftGrid(debugTables, target, staffName);
     } else if (file.mimetype === PDF_MIME) {
       const provider = buildOcrProvider(target);
-      const outcome = await resolvePdfShiftResult(file.buffer, target, staffName, provider);
+      const outcome = await resolvePdfShiftResult(file.buffer, target, staffName, provider, {
+        debug: debugRequested,
+      });
       result = outcome.result;
       routingDebug = outcome.debug;
       debugTables = outcome.tables;
-      rasterizedImages = outcome.rasterizedImages;
+      sentPreviewImages = outcome.sentPreviewImages;
     } else {
       debugTables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
       result = parseShiftGrid(debugTables, target, staffName);
@@ -128,12 +130,18 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       candidateNames: result.candidateNames,
       ...(debugRequested
         ? {
-            debugText: [...routingDebug, "", formatTablesForDebug(debugTables)].filter(Boolean).join("\n"),
-            // Le immagini effettivamente inviate ad Azure per la rasterizzazione
-            // (vuoto se non e' stata necessaria): permettono di vedere con i
-            // propri occhi cosa "vede" Azure, invece di indovinare se un
-            // problema e' nella rasterizzazione o nella lettura del contenuto.
-            debugImages: rasterizedImages
+            debugText: [
+              "=== COSA ABBIAMO FATTO ===",
+              ...routingDebug,
+              "",
+              "=== COSA AZURE CI HA RISPOSTO ===",
+              formatTablesForDebug(debugTables),
+            ].join("\n"),
+            // Anteprima di cio' che e' stato inviato ad Azure. Ad Azure va un
+            // PDF, non un'immagine: queste sono le stesse pagine inviate,
+            // disegnate come immagine qui sul server solo per poterle vedere
+            // (nessuna chiamata ad Azure in piu').
+            debugImages: sentPreviewImages
               .slice(0, MAX_DEBUG_IMAGES)
               .map((png) => `data:image/png;base64,${png.toString("base64")}`),
           }

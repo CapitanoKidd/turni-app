@@ -56,13 +56,11 @@ export default function DebugInfoScreen() {
       {debugImages.length > 0 ? (
         <View style={styles.imagesSection}>
           <Text style={styles.imagesTitle}>
-            {debugImages.length === 1
-              ? "Immagine mandata ad Azure"
-              : `Immagini mandate ad Azure (${debugImages.length})`}
+            {debugImages.length === 1 ? "Cosa e' stato inviato ad Azure" : `Cosa e' stato inviato ad Azure (${debugImages.length} pagine)`}
           </Text>
           <Text style={styles.hint}>
-            Il PDF non bastava da solo: questa pagina e' stata trasformata in immagine e rimandata ad Azure. Tocca
-            l'immagine per aprirla a schermo intero e ingrandirla.
+            Ad Azure viene inviato un PDF, non un'immagine: questa e' esattamente la pagina inviata, disegnata come
+            immagine solo per potertela mostrare. Tocca per aprirla a schermo intero e ingrandirla.
           </Text>
           {debugImages.map((uri, i) => (
             <DebugImageThumbnail key={i} uri={uri} onPress={() => setOpenImageIndex(i)} />

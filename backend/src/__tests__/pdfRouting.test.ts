@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExtractedTable, OcrProvider, TableCell } from "../services/ocr/types.js";
-import { PDF_MIME, PNG_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
+import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { makeTestPdf } from "./fixtures/testPdf.js";
 
 const TARGET_2026_08 = { year: 2026, month1To12: 8 };
@@ -45,76 +45,41 @@ class FakeOcrProvider implements OcrProvider {
 }
 
 describe("resolvePdfShiftResult", () => {
-  it("trova la pagina giusta e non rasterizza se il risultato diretto e' gia' buono", async () => {
+  it("fa UNA SOLA chiamata ad Azure, inviando solo la pagina del dipendente in PDF", async () => {
     const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }, { lines: ["Luigi Verdi"] }]);
     const provider = new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]);
 
-    const { result, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
+    const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
 
-    assert.equal(provider.calls.length, 1, "una sola chiamata: nessun fallback necessario");
-    assert.equal(provider.calls[0].mimeType, PDF_MIME, "il tentativo diretto invia un PDF, non un'immagine");
+    assert.equal(provider.calls.length, 1, "una sola chiamata ad Azure, sempre");
+    assert.equal(provider.calls[0].mimeType, PDF_MIME, "si invia il PDF, non un'immagine");
     assert.equal(result.detectedShifts.length, 31);
-    assert.equal(rasterizedImages.length, 0, "nessuna rasterizzazione: niente immagini di debug da mostrare");
   });
 
-  it("rasterizza solo la pagina trovata se il risultato diretto e' scarso", async () => {
-    const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
-    const provider = new FakeOcrProvider([
-      [], // tentativo diretto: nessuna tabella riconosciuta
-      [rosterTable("Mario Rossi", "M")], // tentativo rasterizzato: va bene
-    ]);
-
-    const { result, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
-
-    assert.equal(provider.calls.length, 2, "deve scattare il fallback di rasterizzazione");
-    assert.equal(provider.calls[1].mimeType, PNG_MIME, "il fallback invia un'immagine, come le foto");
-    assert.equal(result.detectedShifts.length, 31);
-    assert.equal(rasterizedImages.length, 1, "l'immagine mandata ad Azure deve essere esposta per il debug");
-    assert.ok(rasterizedImages[0].length > 0, "l'immagine non deve essere vuota");
-  });
-
-  it("unisce diretta e rasterizzata riempiendo solo i giorni mancanti, senza scartare quella diretta", async () => {
-    const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
-
-    // La lettura diretta manca solo di due giorni (27 e 28), come nei casi
-    // reali visti: celle rimaste vuote nell'estrazione, non un fallimento
-    // totale della tabella.
-    const directCodes = Array.from({ length: 31 }, (_, i) => (i === 26 || i === 27 ? "" : "M"));
-    // La rasterizzata ha valori diversi ovunque (per verificare che la
-    // diretta vinca sui conflitti) ma recupera proprio quei due giorni.
-    const rasterizedCodes = Array.from({ length: 31 }, (_, i) => (i === 26 || i === 27 ? "R" : "X"));
-
-    const provider = new FakeOcrProvider([
-      [rosterTableWithCodes("Mario Rossi", directCodes)],
-      [rosterTableWithCodes("Mario Rossi", rasterizedCodes)],
-    ]);
+  it("non fa una seconda chiamata nemmeno quando il risultato e' parziale", async () => {
+    const pdf = await makeTestPdf([rosterPdfPage(["Anna Bianchi", "Mario Rossi", "Luigi Verdi"])]);
+    // Mancano due giorni: in passato questo faceva scattare un secondo
+    // tentativo rasterizzato. Ora il risultato parziale va restituito com'e'.
+    const partialCodes = Array.from({ length: 31 }, (_, i) => (i === 26 || i === 27 ? "" : "M"));
+    const provider = new FakeOcrProvider([[rosterTableWithCodes("Mario Rossi", partialCodes)]]);
 
     const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
 
-    assert.equal(provider.calls.length, 2, "una copertura non completa deve comunque attivare il secondo tentativo");
-    assert.equal(result.detectedShifts.length, 31, "tutti i giorni devono essere presenti dopo l'unione");
-    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-01")?.rawCode, "M", "sui conflitti vince la lettura diretta");
-    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-27")?.rawCode, "R", "il giorno mancante nella diretta arriva dalla rasterizzata");
-    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-28")?.rawCode, "R");
+    assert.equal(provider.calls.length, 1, "una copertura parziale NON deve piu' attivare un secondo tentativo");
+    assert.equal(result.detectedShifts.length, 29, "i giorni trovati restano quelli, senza tentativi di recupero");
   });
 
-  it("ritaglia solo intestazione + riga (non l'intera pagina) quando la geometria e' individuabile nel PDF", async () => {
-    const pdf = await makeTestPdf([rosterPdfPage(["Anna Bianchi", "Mario Rossi", "Luigi Verdi", "Sara Neri", "Elio Conti"])]);
-    const provider = new FakeOcrProvider([
-      [], // tentativo diretto: nessuna tabella riconosciuta
-      [rosterTable("Mario Rossi", "M", 10)], // tentativo rasterizzato: va bene
-    ]);
+  it("non fa una seconda chiamata nemmeno quando Azure non restituisce nulla", async () => {
+    const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
+    const provider = new FakeOcrProvider([[]]); // nessuna tabella riconosciuta
 
-    const { debug, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
+    const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
 
-    assert.ok(
-      debug.some((line) => line.includes("ritagliata")),
-      `il debug deve indicare che e' stata usata la fascia ritagliata, non l'intera pagina: ${debug.join(" | ")}`,
-    );
-    assert.equal(rasterizedImages.length, 1);
+    assert.equal(provider.calls.length, 1, "nessun secondo tentativo nemmeno in caso di fallimento totale");
+    assert.equal(result.detectedShifts.length, 0);
   });
 
-  it("elabora l'intero documento come rete di sicurezza se il nome non viene trovato in nessuna pagina", async () => {
+  it("elabora l'intero documento con una sola chiamata se il nome non viene trovato", async () => {
     const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }, { lines: ["Luigi Verdi"] }]);
     const provider = new FakeOcrProvider([[rosterTable("Anna Bianchi", "N")]]);
 
@@ -123,18 +88,39 @@ describe("resolvePdfShiftResult", () => {
     assert.equal(provider.calls.length, 1);
     assert.equal(provider.calls[0].mimeType, PDF_MIME);
     assert.equal(result.detectedShifts.length, 31);
-    assert.ok(debug.some((line) => line.includes("elaboro l'intero documento")));
+    assert.ok(debug.some((line) => line.includes("l'intero documento")));
   });
 
-  it("funziona anche senza nessun nome utente fornito (elabora l'intero documento)", async () => {
+  it("funziona anche senza nessun nome utente fornito (una sola chiamata)", async () => {
     const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
     const provider = new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]);
 
     const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, undefined, provider);
 
     assert.equal(provider.calls.length, 1);
-    // Senza nome, il documento intero va comunque analizzato: se la tabella
-    // ha un'unica persona la si riconosce comunque come candidato.
     assert.ok(result.detectedShifts.length > 0 || (result.candidateNames?.length ?? 0) > 0);
+  });
+
+  it("senza modalita' debug non genera nessuna anteprima; con il debug attivo genera l'anteprima di cio' che e' stato inviato", async () => {
+    const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }]);
+    const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    const quiet = await resolvePdfShiftResult(
+      pdf,
+      TARGET_2026_08,
+      "Mario Rossi",
+      new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]),
+    );
+    assert.equal(quiet.sentPreviewImages.length, 0, "senza debug non si spreca CPU a disegnare anteprime");
+
+    const verbose = await resolvePdfShiftResult(
+      pdf,
+      TARGET_2026_08,
+      "Mario Rossi",
+      new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]),
+      { debug: true },
+    );
+    assert.equal(verbose.sentPreviewImages.length, 1, "con il debug si mostra cosa e' stato inviato");
+    assert.ok(verbose.sentPreviewImages[0].subarray(0, 4).equals(PNG_MAGIC));
   });
 });
