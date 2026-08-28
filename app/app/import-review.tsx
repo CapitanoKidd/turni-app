@@ -44,13 +44,23 @@ export default function ImportReviewScreen() {
     return map;
   }, [shiftTypes]);
 
+  // Un giorno "vuoto" (nessun codice riconosciuto nella cella) non e' un
+  // codice da definire: e' semplicemente un giorno che l'utente completera'
+  // a mano dopo l'importazione, toccandolo nel calendario.
   const uniqueCodes = useMemo(() => {
     const seen = new Set<string>();
-    return detectedShifts.map((s) => s.rawCode).filter((code) => (seen.has(code) ? false : seen.add(code)));
+    return detectedShifts
+      .map((s) => s.rawCode)
+      .filter((code) => code.trim().length > 0)
+      .filter((code) => (seen.has(code) ? false : seen.add(code)));
   }, [detectedShifts]);
 
   const unmappedCodes = uniqueCodes.filter((code) => !shiftTypeByLabel.has(code.trim().toUpperCase()));
   const allMapped = detectedShifts.length > 0 && unmappedCodes.length === 0;
+  const recognizedCount = useMemo(
+    () => detectedShifts.filter((s) => s.rawCode.trim().length > 0).length,
+    [detectedShifts],
+  );
 
   async function handleImport() {
     if (!allMapped) return;
@@ -107,7 +117,9 @@ export default function ImportReviewScreen() {
       <Text style={styles.heading}>
         {MONTH_NAMES[month - 1]} {year}
       </Text>
-      <Text style={styles.subheading}>{detectedShifts.length} giorni rilevati</Text>
+      <Text style={styles.subheading}>
+        {recognizedCount} di {detectedShifts.length} giorni con un turno riconosciuto
+      </Text>
 
       {warnings.map((warning, i) => (
         <View key={i} style={styles.warningBox}>
@@ -133,14 +145,26 @@ export default function ImportReviewScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Anteprima</Text>
+        <Text style={styles.sectionHint}>
+          I giorni "vuoto" non avevano nessun codice riconoscibile nel documento: dopo l'importazione puoi
+          assegnarli a mano toccandoli nel calendario, anche come riposo o ferie.
+        </Text>
         {detectedShifts.map((shift, index) => {
-          const shiftType = shiftTypeByLabel.get(shift.rawCode.trim().toUpperCase());
+          const isBlank = shift.rawCode.trim().length === 0;
+          const shiftType = isBlank ? undefined : shiftTypeByLabel.get(shift.rawCode.trim().toUpperCase());
           return (
             <View key={`${shift.date}-${index}`} style={styles.previewRow}>
               <Text style={styles.previewDate}>{formatDayLabel(shift.date)}</Text>
               <View style={styles.previewShift}>
                 {shiftType ? <View style={[styles.dot, { backgroundColor: shiftType.color }]} /> : null}
-                <Text style={[styles.previewCode, !shiftType && styles.previewCodePending]}>{shift.rawCode}</Text>
+                <Text
+                  style={[
+                    styles.previewCode,
+                    isBlank ? styles.previewCodeBlank : !shiftType && styles.previewCodePending,
+                  ]}
+                >
+                  {isBlank ? "vuoto" : shift.rawCode}
+                </Text>
               </View>
             </View>
           );
@@ -200,6 +224,7 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   previewCode: { color: theme.colors.text, fontWeight: "600" },
   previewCodePending: { color: theme.colors.danger },
+  previewCodeBlank: { color: theme.colors.textMuted, fontStyle: "italic", fontWeight: "400" },
   importButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.md,

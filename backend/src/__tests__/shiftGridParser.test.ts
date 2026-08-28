@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExtractedTable, TableCell } from "../services/ocr/types.js";
-import { parseShiftGrid } from "../services/shiftGridParser.js";
+import { parseShiftGrid, withEveryDayOfMonth } from "../services/shiftGridParser.js";
 
 const TARGET_2026_08 = { year: 2026, month1To12: 8 };
 
@@ -162,5 +162,48 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
     assert.equal(result.detectedShifts.length, 7, "anche i giorni 3 e 4, la cui intestazione e' illeggibile, vanno dedotti dalla posizione");
     assert.ok(result.detectedShifts.some((s) => s.date === "2026-08-03"));
     assert.ok(result.detectedShifts.some((s) => s.date === "2026-08-04"));
+  });
+});
+
+describe("withEveryDayOfMonth", () => {
+  it("riempie i giorni mancanti con rawCode vuoto, senza toccare quelli gia' trovati", () => {
+    const found = [
+      { date: "2026-08-05", rawCode: "M", confidence: 0.85 },
+      { date: "2026-08-01", rawCode: "-", confidence: 0.85 },
+    ];
+
+    const result = withEveryDayOfMonth(found, { year: 2026, month1To12: 8 });
+
+    assert.equal(result.length, 31, "agosto ha 31 giorni: devono esserci tutti, anche quelli non trovati");
+    assert.deepEqual(
+      result.map((s) => s.date),
+      result
+        .map((s) => s.date)
+        .slice()
+        .sort(),
+      "i giorni devono restare in ordine di data",
+    );
+
+    const day1 = result.find((s) => s.date === "2026-08-01");
+    assert.equal(day1?.rawCode, "-", "un giorno gia' trovato non va sovrascritto");
+
+    const day2 = result.find((s) => s.date === "2026-08-02");
+    assert.equal(day2?.rawCode, "", "un giorno non trovato deve comparire comunque, con rawCode vuoto");
+
+    const day31 = result.find((s) => s.date === "2026-08-31");
+    assert.equal(day31?.rawCode, "", "anche l'ultimo giorno del mese deve comparire se non trovato");
+  });
+
+  it("non aggiunge o perde giorni quando sono gia' tutti presenti", () => {
+    const allDays = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-04-${String(i + 1).padStart(2, "0")}`,
+      rawCode: "M",
+      confidence: 0.85,
+    }));
+
+    const result = withEveryDayOfMonth(allDays, { year: 2026, month1To12: 4 });
+
+    assert.equal(result.length, 30, "aprile ha 30 giorni");
+    assert.ok(result.every((s) => s.rawCode === "M"));
   });
 });

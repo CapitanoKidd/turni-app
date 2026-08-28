@@ -6,7 +6,7 @@ import { AzureDocumentIntelligenceProvider } from "../services/ocr/azureDocument
 import { MockOcrProvider } from "../services/ocr/mockProvider.js";
 import type { ExtractedTable, OcrProvider } from "../services/ocr/types.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
-import { parseShiftGrid, type ShiftGridParseResult } from "../services/shiftGridParser.js";
+import { parseShiftGrid, withEveryDayOfMonth, type ShiftGridParseResult } from "../services/shiftGridParser.js";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -109,11 +109,18 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       console.log(`[analyze] routing PDF: ${routingDebug.join(" -> ")}`);
     }
 
+    // Un nome ambiguo (candidateNames) non ha ancora una riga scelta: niente
+    // da completare, l'app chiedera' prima all'utente chi e' lui/lei e
+    // ripetera' l'analisi. In ogni altro caso l'utente vede sempre tutti i
+    // giorni del mese, riconosciuti o "vuoto" che siano.
+    const hasAmbiguousName = (result.candidateNames?.length ?? 0) > 0;
+    const detectedShifts = hasAmbiguousName ? result.detectedShifts : withEveryDayOfMonth(result.detectedShifts, target);
+
     res.json({
       success: true,
       month: target.month1To12,
       year: target.year,
-      detectedShifts: result.detectedShifts,
+      detectedShifts,
       warnings: result.warnings,
       candidateNames: result.candidateNames,
       ...(debugRequested

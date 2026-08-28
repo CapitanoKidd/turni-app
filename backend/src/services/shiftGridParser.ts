@@ -424,6 +424,34 @@ function tryRosterStrategy(
 }
 
 /**
+ * Assicura che ci sia un giorno per OGNI giorno del mese, anche quando la
+ * cella era vuota o il suo contenuto non e' stato riconosciuto: un giorno
+ * "vuoto" (rawCode: "") viene comunque restituito invece di sparire dal
+ * risultato, cosi' chi chiama puo' mostrarlo esplicitamente all'utente
+ * ("8 agosto: vuoto") che decide lui se lasciarlo cosi', assegnare un turno
+ * a mano o segnarlo come riposo/ferie — invece di scoprire "in silenzio"
+ * che un giorno manca.
+ *
+ * Va applicata UNA SOLA VOLTA, alla fine di tutta la pipeline (dopo l'unione
+ * fra lettura diretta e rasterizzata in pdfRouting.ts, in analyze.ts prima
+ * di rispondere): un risultato intermedio deve restare "sparso" (solo i
+ * giorni davvero trovati), perche' la fase di merge si basa proprio su quali
+ * date mancano per capire cosa completare dal secondo tentativo. Applicarla
+ * prima renderebbe ogni risultato "pieno" per costruzione e romperebbe quel
+ * meccanismo.
+ */
+export function withEveryDayOfMonth(detectedShifts: DetectedShift[], target: TargetMonth): DetectedShift[] {
+  const totalDays = daysInMonth(target);
+  const byDate = new Map(detectedShifts.map((s) => [s.date, s]));
+  const result: DetectedShift[] = [];
+  for (let day = 1; day <= totalDays; day++) {
+    const date = toIsoDate(target, day);
+    result.push(byDate.get(date) ?? { date, rawCode: "", confidence: 0 });
+  }
+  return result;
+}
+
+/**
  * Converte le tabelle grezze estratte da OCR/docx in una lista di turni per
  * giorno. Prova, in ordine: (1) turnistica multi-persona se il documento ha
  * quella forma (serve `staffName` per sapere quale riga prendere); (2)
