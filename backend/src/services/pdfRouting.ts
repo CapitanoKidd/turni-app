@@ -1,4 +1,5 @@
 import { findStaffPage } from "./findStaffPage.js";
+import { fillGapsFromCellImages } from "./fillGapsFromCellImages.js";
 import type { ExtractedTable, OcrProvider, RecognizedWord } from "./ocr/types.js";
 import { extractSinglePagePdf, rasterizeAllPages, rasterizePage } from "./pdfRasterizer.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "./shiftGridParser.js";
@@ -21,6 +22,12 @@ export interface PdfRoutingOutcome {
    * server per poterle guardare. Non costano nessuna chiamata ad Azure.
    */
   sentPreviewImages: Buffer[];
+  /**
+   * Giorni il cui disegno non e' stato letto in nessun punto del documento:
+   * l'unica cosa che resta da chiedere all'utente. Vuoto quando tutto e'
+   * stato risolto.
+   */
+  unresolvedCells?: Array<{ date: string; fingerprint: string }>;
   /**
    * Le parole che l'OCR dice di aver riconosciuto, con la loro confidenza.
    * Arrivano nella stessa risposta delle tabelle (nessuna chiamata in piu').
@@ -74,8 +81,40 @@ export async function resolvePdfShiftResult(
     const result = parseShiftGrid(tables, target, staffName);
     debug.push(`Azure ha restituito ${tables.length} tabella/e — copertura ${Math.round(result.coverage * 100)}%`);
 
+    // Completamento locale (nessuna chiamata in piu'): molte turnistiche
+    // disegnano i codici come piccole immagini riutilizzate, quindi una cella
+    // rimasta vuota spesso contiene lo stesso identico disegno di una che
+    // l'analisi ha letto bene altrove.
+    const hasAmbiguousName = (result.candidateNames?.length ?? 0) > 0;
+    const filled =
+      hasAmbiguousName || !staffName
+        ? null
+        : await fillGapsFromCellImages({
+            buffer,
+            pageIndex: staffPage.pageIndex,
+            tables,
+            target,
+            staffName,
+            detectedShifts: result.detectedShifts,
+          });
+
+    const finalResult = filled
+      ? { ...result, detectedShifts: filled.detectedShifts, coverage: filled.detectedShifts.length / totalDaysOf(target) }
+      : result;
+    if (filled) debug.push(...filled.debug);
+    if (filled && filled.detectedShifts.length !== result.detectedShifts.length) {
+      debug.push(`copertura dopo il completamento locale: ${Math.round(finalResult.coverage * 100)}%`);
+    }
+
     const sentPreviewImages = options.debug ? [await rasterizePage(singlePagePdf, 0)] : [];
-    return { result, tables, debug, sentPreviewImages, recognizedWords: provider.getLastRecognizedWords?.() ?? [] };
+    return {
+      result: finalResult,
+      tables,
+      debug,
+      sentPreviewImages,
+      recognizedWords: provider.getLastRecognizedWords?.() ?? [],
+      unresolvedCells: filled?.unresolved ?? [],
+    };
   }
 
   debug.push(
@@ -93,4 +132,8 @@ export async function resolvePdfShiftResult(
     ? (await rasterizeAllPages(buffer)).slice(0, MAX_PREVIEW_PAGES)
     : [];
   return { result, tables, debug, sentPreviewImages, recognizedWords: provider.getLastRecognizedWords?.() ?? [] };
+}
+
+function totalDaysOf(target: { year: number; month1To12: number }): number {
+  return new Date(target.year, target.month1To12, 0).getDate();
 }

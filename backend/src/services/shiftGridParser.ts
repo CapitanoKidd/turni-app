@@ -372,6 +372,49 @@ function extractRowShifts(roster: RosterTable, rowIndex: number, target: TargetM
   return results.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Una riga della turnistica: la persona e i codici che l'analisi ha letto, giorno per giorno. */
+export interface RosterGridRow {
+  name: string;
+  /** giorno del mese -> codice letto. I giorni assenti sono quelli lasciati vuoti dall'analisi. */
+  codesByDay: Map<number, string>;
+}
+
+/**
+ * Estrae la griglia COMPLETA (tutte le persone, non solo quella cercata).
+ * Serve a imparare cosa significa ogni simbolo guardando anche le righe dei
+ * colleghi: se un disegno e' stato letto correttamente nella riga di un altro,
+ * quel significato vale anche per la nostra cella rimasta vuota.
+ *
+ * Restituisce una lista vuota se il documento non ha la forma di una
+ * turnistica multi-persona.
+ */
+export function extractRosterGrid(tables: ExtractedTable[], target: TargetMonth): RosterGridRow[] {
+  const rows: RosterGridRow[] = [];
+
+  for (const table of tables) {
+    const roster = detectRosterTable(table, target);
+    if (!roster) continue;
+
+    for (const [rowIndex, name] of roster.rowNames) {
+      const cellsInRow = table.cells.filter((c) => c.rowIndex === rowIndex);
+      const byColumn = new Map(cellsInRow.map((c) => [c.columnIndex, c.text]));
+
+      const codesByDay = new Map<number, string>();
+      for (const [columnIndex, day] of roster.dayByColumn) {
+        const rawText = byColumn.get(columnIndex);
+        if (!rawText) continue;
+        const code = extractPrimaryCode(rawText);
+        if (isBlankMarker(code)) continue;
+        if (!codesByDay.has(day)) codesByDay.set(day, code.toUpperCase());
+      }
+
+      if (codesByDay.size > 0) rows.push({ name, codesByDay });
+    }
+  }
+
+  return rows;
+}
+
 /**
  * Prova la strategia "turnistica multi-persona": cerca tabelle con una riga
  * di giorni e una colonna di nomi, poi individua la riga che corrisponde a
