@@ -5,6 +5,7 @@ import { cancelAllAlarms, ensureNotificationPermission, scheduleAlarmsForEntries
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
 import type { AppSettings, ShiftType } from "../../lib/types";
+import { isDayOff } from "../../lib/types";
 
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -95,8 +96,10 @@ export default function SettingsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.shiftLabel}>{shift.label}</Text>
                 <Text style={styles.shiftTime}>
-                  {shift.isRestDay
-                    ? "Riposo/ferie"
+                  {isDayOff(shift)
+                    ? shift.isVacation
+                      ? "Ferie"
+                      : "Riposo"
                     : `${shift.startTime}-${shift.endTime}${shift.alarmEnabled ? ` · sveglia ${shift.alarmTime}` : ""}`}
                 </Text>
               </View>

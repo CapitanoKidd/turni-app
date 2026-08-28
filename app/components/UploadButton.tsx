@@ -19,12 +19,19 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
   async function handlePress() {
     if (loading) return;
-    Alert.alert("Carica turni", "Come vuoi caricare la griglia dei turni?", [
-      { text: "Scatta una foto", onPress: pickFromCamera },
-      { text: "Scegli da galleria", onPress: pickFromGallery },
-      { text: "Scegli un file (PDF o Word)", onPress: pickDocument },
-      { text: "Annulla", style: "cancel" },
-    ]);
+    Alert.alert(
+      "Carica turni",
+      "Come vuoi caricare la griglia dei turni?",
+      [
+        { text: "Scatta una foto", onPress: pickFromCamera },
+        { text: "Scegli da galleria", onPress: pickFromGallery },
+        { text: "Scegli un file (PDF o Word)", onPress: pickDocument },
+        { text: "Annulla", style: "cancel" },
+      ],
+      // Toccando fuori dal popup si chiude senza fare nulla (come "Annulla"),
+      // cosi' un tocco accidentale sul pulsante non blocca l'utente li'.
+      { cancelable: true },
+    );
   }
 
   async function pickFromCamera() {

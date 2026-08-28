@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { theme } from "../lib/theme";
-import type { ShiftType } from "../lib/types";
+import { isDayOff, type ShiftType } from "../lib/types";
 
 export function ShiftLegend({ shiftTypes }: { shiftTypes: ShiftType[] }) {
   if (shiftTypes.length === 0) return null;
@@ -11,7 +11,7 @@ export function ShiftLegend({ shiftTypes }: { shiftTypes: ShiftType[] }) {
         <View key={shift.id} style={styles.item}>
           <View style={[styles.dot, { backgroundColor: shift.color }]} />
           <Text style={styles.label}>
-            {shift.isRestDay ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
+            {isDayOff(shift) ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
           </Text>
         </View>
       ))}

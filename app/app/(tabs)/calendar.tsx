@@ -6,7 +6,7 @@ import { DayShiftSheet } from "../../components/DayShiftSheet";
 import { MonthCalendar } from "../../components/MonthCalendar";
 import { MonthSummary } from "../../components/MonthSummary";
 import { ShiftLegend } from "../../components/ShiftLegend";
-import { cancelAlarmsForDates, cancelAllAlarms, scheduleAlarmsForEntries } from "../../lib/notifications";
+import { cancelAlarmsForDates, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
 import type { AppSettings, CalendarEntries, ShiftType } from "../../lib/types";
@@ -64,22 +64,27 @@ export default function CalendarScreen() {
     setSelectedDate(null);
   }
 
-  const hasShifts = Object.keys(entries).some((date) => date.startsWith(`${year}-${String(month).padStart(2, "0")}`));
-  const hasAnyEntries = Object.keys(entries).length > 0;
+  const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+  const hasShifts = Object.keys(entries).some((date) => date.startsWith(monthPrefix));
 
   function handleResetCalendar() {
+    const datesThisMonth = Object.keys(entries).filter((date) => date.startsWith(monthPrefix));
+    if (datesThisMonth.length === 0) return;
+
     Alert.alert(
-      "Cancellare tutti i turni?",
-      "Verranno rimossi i turni di TUTTI i mesi (non solo quello attuale) e le sveglie collegate. I tipi di turno che hai creato restano, potrai riassegnarli caricando di nuovo la griglia.",
+      "Cancellare i turni di questo mese?",
+      `Verranno rimossi solo i turni di ${MONTH_NAMES[month - 1]} ${year} e le sveglie collegate. Gli altri mesi e i tipi di turno che hai creato restano.`,
       [
         { text: "Annulla", style: "cancel" },
         {
-          text: "Cancella tutto",
+          text: "Cancella",
           style: "destructive",
           onPress: async () => {
-            await storage.saveCalendarEntries({});
-            await cancelAllAlarms();
-            setEntries({});
+            const next = { ...entries };
+            for (const date of datesThisMonth) delete next[date];
+            setEntries(next);
+            await storage.saveCalendarEntries(next);
+            await cancelAlarmsForDates(datesThisMonth);
           },
         },
       ],
@@ -120,9 +125,9 @@ export default function CalendarScreen() {
           {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
           <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
           {settings?.legendVisible ? <ShiftLegend shiftTypes={shiftTypes} /> : null}
-          {hasAnyEntries ? (
+          {hasShifts ? (
             <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
-              <Text style={styles.resetButtonText}>Cancella tutti i turni</Text>
+              <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
             </TouchableOpacity>
           ) : null}
         </>

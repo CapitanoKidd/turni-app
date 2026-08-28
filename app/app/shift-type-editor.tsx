@@ -16,6 +16,7 @@ export default function ShiftTypeEditorScreen() {
   const [allShiftTypes, setAllShiftTypes] = useState<ShiftType[]>([]);
   const [label, setLabel] = useState(params.prefillLabel ?? "");
   const [isRestDay, setIsRestDay] = useState(false);
+  const [isVacation, setIsVacation] = useState(false);
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
   const [alarmEnabled, setAlarmEnabled] = useState(false);
@@ -37,6 +38,7 @@ export default function ShiftTypeEditorScreen() {
         if (existing) {
           setLabel(existing.label);
           setIsRestDay(existing.isRestDay);
+          setIsVacation(existing.isVacation);
           setStartTime(existing.startTime ?? "06:00");
           setEndTime(existing.endTime ?? "14:00");
           setAlarmEnabled(existing.alarmEnabled);
@@ -59,15 +61,17 @@ export default function ShiftTypeEditorScreen() {
     }
 
     const existingIndex = allShiftTypes.findIndex((s) => s.id === params.id);
+    const dayOff = isRestDay || isVacation;
     const shiftType: ShiftType = {
       id: params.id ?? generateId(),
       label: trimmedLabel,
       isRestDay,
-      startTime: isRestDay ? undefined : startTime,
-      endTime: isRestDay ? undefined : endTime,
+      isVacation,
+      startTime: dayOff ? undefined : startTime,
+      endTime: dayOff ? undefined : endTime,
       color: existingIndex >= 0 ? allShiftTypes[existingIndex].color : nextShiftColor(allShiftTypes.length),
-      alarmEnabled: isRestDay ? false : alarmEnabled,
-      alarmTime: !isRestDay && alarmEnabled ? alarmTime : undefined,
+      alarmEnabled: dayOff ? false : alarmEnabled,
+      alarmTime: !dayOff && alarmEnabled ? alarmTime : undefined,
     };
 
     const next =
@@ -113,13 +117,33 @@ export default function ShiftTypeEditorScreen() {
 
       <View style={styles.switchRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Riposo o ferie</Text>
+          <Text style={styles.fieldLabel}>Riposo</Text>
           <Text style={styles.hint}>Nessun orario di lavoro e nessuna sveglia per questo turno.</Text>
         </View>
-        <Switch value={isRestDay} onValueChange={setIsRestDay} />
+        <Switch
+          value={isRestDay}
+          onValueChange={(value) => {
+            setIsRestDay(value);
+            if (value) setIsVacation(false);
+          }}
+        />
       </View>
 
-      {!isRestDay ? (
+      <View style={styles.switchRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fieldLabel}>Ferie</Text>
+          <Text style={styles.hint}>Come riposo, ma contata separatamente nel riepilogo del mese.</Text>
+        </View>
+        <Switch
+          value={isVacation}
+          onValueChange={(value) => {
+            setIsVacation(value);
+            if (value) setIsRestDay(false);
+          }}
+        />
+      </View>
+
+      {!isRestDay && !isVacation ? (
         <>
           <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
           <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />

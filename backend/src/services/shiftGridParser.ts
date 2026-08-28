@@ -248,6 +248,36 @@ interface RosterTable {
 }
 
 /** Individua, se presente, la colonna che contiene i nomi dei dipendenti in una tabella con riga di intestazione = giorni del mese. */
+/**
+ * Da un insieme di celle di intestazione lette con sicurezza (colonna ->
+ * giorno), deduce la colonna di TUTTI i giorni del mese assumendo che la
+ * griglia segua un passo costante (quasi sempre una colonna per giorno,
+ * es. colonna 3 = giorno 1, colonna 4 = giorno 2...). Serve perche' Azure
+ * non legge sempre l'intestazione nello stesso modo tra una chiamata e
+ * l'altra (a volte fonde due giorni vicini in un'unica cella): le righe con
+ * i turni veri restano invece stabili, quindi conviene ricostruire la
+ * mappa dei giorni per posizione invece di dipendere dal riuscire a
+ * leggere ogni singola cella di intestazione.
+ */
+function inferDayByColumn(confident: Map<number, number>, totalDays: number): Map<number, number> {
+  if (confident.size < 3) return confident; // troppo poche ancore per fidarsi di un passo dedotto
+
+  const offsetCounts = new Map<number, number>();
+  for (const [columnIndex, day] of confident) {
+    const offset = columnIndex - day;
+    offsetCounts.set(offset, (offsetCounts.get(offset) ?? 0) + 1);
+  }
+  const [dominantOffset, dominantCount] = [...offsetCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (dominantCount / confident.size < 0.6) return confident; // passo poco chiaro: meglio non indovinare oltre
+
+  const result = new Map(confident);
+  for (let day = 1; day <= totalDays; day++) {
+    const columnIndex = day + dominantOffset;
+    if (!result.has(columnIndex)) result.set(columnIndex, day);
+  }
+  return result;
+}
+
 function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTable | null {
   const totalDays = daysInMonth(target);
   const byRow = groupBy(table.cells, (c) => c.rowIndex);
@@ -261,13 +291,16 @@ function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTa
   // principale vengono recuperate da li', quella principale ha comunque
   // sempre l'ultima parola in caso di conflitto.
   const HEADER_ROW_WINDOW = 3;
-  const dayByColumn = new Map<number, number>();
+  const confidentDayByColumn = new Map<number, number>();
   for (let rowIndex = Math.max(0, headerRowIndex - HEADER_ROW_WINDOW + 1); rowIndex <= headerRowIndex; rowIndex++) {
     for (const cell of byRow.get(rowIndex) ?? []) {
       const day = extractTrailingDayNumber(cell.text);
-      if (day !== null) dayByColumn.set(cell.columnIndex, day);
+      if (day !== null) confidentDayByColumn.set(cell.columnIndex, day);
     }
   }
+  // Le colonne la cui intestazione non si legge bene quella volta (fusa con
+  // quella accanto, ecc.) vengono comunque dedotte dal passo delle altre.
+  const dayByColumn = inferDayByColumn(confidentDayByColumn, totalDays);
   if (dayByColumn.size < 5) return null; // troppo poche colonne-giorno per essere una turnistica del mese
 
   const minDayColumn = Math.min(...dayByColumn.keys());

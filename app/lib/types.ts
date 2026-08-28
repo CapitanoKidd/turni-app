@@ -2,13 +2,20 @@
 export interface ShiftType {
   id: string;
   label: string; // testo libero scelto dall'utente: "M", "Matt", "1", "M1"...
-  /** Giorno di riposo/ferie: nessun orario di lavoro e nessuna sveglia. */
+  /** Giorno di riposo: nessun orario di lavoro e nessuna sveglia. Mai true insieme a isVacation. */
   isRestDay: boolean;
-  startTime?: string; // "HH:mm", assente se isRestDay
-  endTime?: string; // "HH:mm", assente se isRestDay
+  /** Giorno di ferie: nessun orario di lavoro e nessuna sveglia. Mai true insieme a isRestDay. */
+  isVacation: boolean;
+  startTime?: string; // "HH:mm", assente se isRestDay o isVacation
+  endTime?: string; // "HH:mm", assente se isRestDay o isVacation
   color: string; // colore usato nel calendario/legenda
   alarmEnabled: boolean;
   alarmTime?: string; // "HH:mm", richiesto se alarmEnabled
+}
+
+/** true se questo tipo di turno non prevede orario di lavoro (riposo o ferie). */
+export function isDayOff(shiftType: ShiftType): boolean {
+  return shiftType.isRestDay || shiftType.isVacation;
 }
 
 /** Turno assegnato a un giorno specifico. Chiave della mappa: "YYYY-MM-DD". */

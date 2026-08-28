@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { theme } from "../lib/theme";
-import type { CalendarEntries, ShiftType } from "../lib/types";
+import { isDayOff, type CalendarEntries, type ShiftType } from "../lib/types";
 
 const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
 
@@ -52,7 +52,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPres
 
           const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
           const isToday = cell.iso === todayIso;
-          const isWorkingShift = shiftType && !shiftType.isRestDay;
+          const isWorkingShift = shiftType && !isDayOff(shiftType);
 
           return (
             <TouchableOpacity
@@ -61,7 +61,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPres
                 styles.cell,
                 styles.dayCell,
                 isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
-                shiftType?.isRestDay && styles.restDayCell,
+                shiftType && isDayOff(shiftType) && styles.restDayCell,
                 isToday && styles.todayBorder,
               ]}
               onPress={() => onDayPress(cell.iso)}

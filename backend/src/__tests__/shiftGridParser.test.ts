@@ -135,4 +135,32 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
     const sortedDates = [...dates].sort();
     assert.deepEqual(dates, sortedDates, "i turni devono uscire in ordine di data, non nell'ordine in cui le colonne sono state unite");
   });
+
+  it("deduce per posizione i giorni la cui intestazione e' illeggibile quella volta (Azure non legge sempre l'header allo stesso modo)", () => {
+    // Stesso documento, due chiamate diverse ad Azure: la seconda volta i
+    // giorni 3 e 4 vengono fusi con il numero di settimana in una cella
+    // unica illeggibile ("2026 32 Mo Di 03 04"), invece di restare separati
+    // come la prima volta. Le righe con i turni veri restano identiche.
+    // Giorni 1,2 e poi 5-12 in chiaro (una sequenza consecutiva abbastanza
+    // lunga da farla riconoscere come riga dei giorni), 3 e 4 mancanti li'
+    // perche' fusi altrove in una cella illeggibile.
+    const header: TableCell[] = [1, 2, 5, 6, 7, 8, 9, 10, 11, 12].map((day) => ({
+      rowIndex: 2,
+      columnIndex: day + 2,
+      text: String(day),
+    }));
+    header.push({ rowIndex: 0, columnIndex: 5, text: "2026 32 Mo Di 03 04" }); // giorni 3 e 4 fusi, illeggibili
+
+    const dataRow: TableCell[] = [
+      { rowIndex: 3, columnIndex: 0, text: "Mario Rossi" },
+      ...Array.from({ length: 7 }, (_, i) => ({ rowIndex: 3, columnIndex: i + 3, text: "M" })),
+    ];
+
+    const table: ExtractedTable = { rowCount: 4, columnCount: 10, cells: [...header, ...dataRow] };
+    const result = parseShiftGrid([table], TARGET_2026_08, "Mario Rossi");
+
+    assert.equal(result.detectedShifts.length, 7, "anche i giorni 3 e 4, la cui intestazione e' illeggibile, vanno dedotti dalla posizione");
+    assert.ok(result.detectedShifts.some((s) => s.date === "2026-08-03"));
+    assert.ok(result.detectedShifts.some((s) => s.date === "2026-08-04"));
+  });
 });

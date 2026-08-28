@@ -1,6 +1,6 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { theme } from "../lib/theme";
-import type { ShiftType } from "../lib/types";
+import { isDayOff, type ShiftType } from "../lib/types";
 
 interface DayShiftSheetProps {
   visible: boolean;
@@ -51,7 +51,7 @@ export function DayShiftSheet({
                 >
                   <View style={[styles.dot, { backgroundColor: shift.color }]} />
                   <Text style={styles.optionText}>
-                    {shift.isRestDay ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
+                    {isDayOff(shift) ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
                   </Text>
                 </TouchableOpacity>
               ))
