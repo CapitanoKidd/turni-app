@@ -127,17 +127,26 @@ function DebugImageThumbnail({ uri, onPress }: { uri: string; onPress: () => voi
       ) : (
         <View style={[styles.thumbnailLoading, { width: previewWidth }]} />
       )}
-      <Text style={styles.thumbnailHint}>Tocca per ingrandire</Text>
+      <Text style={styles.thumbnailHint}>Tocca per aprirla e ingrandirla</Text>
     </TouchableOpacity>
   );
 }
 
-/** Vista a schermo intero con zoom (pizzico con due dita) per guardare l'immagine nel dettaglio. */
+/**
+ * Vista a schermo intero per guardare l'immagine nel dettaglio, con zoom a
+ * pulsanti e scorrimento in entrambe le direzioni.
+ *
+ * Nota: NON si usa lo zoom a pizzico di ScrollView
+ * (minimumZoomScale/maximumZoomScale) perche' e' supportato solo su iOS: su
+ * Android non farebbe assolutamente nulla, lasciando l'immagine bloccata.
+ */
 function ZoomableImageModal({ uri, onClose }: { uri: string | null; onClose: () => void }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
+    setZoom(1); // ogni apertura riparte dalla vista intera
     if (!uri) {
       setAspectRatio(null);
       return;
@@ -159,35 +168,50 @@ function ZoomableImageModal({ uri, onClose }: { uri: string | null; onClose: () 
 
   if (!uri) return null;
 
-  const fittedWidth = windowWidth;
-  const fittedHeight = aspectRatio ? Math.min(windowHeight, windowWidth / aspectRatio) : windowHeight;
+  // A zoom 1 l'immagine sta tutta nello schermo; sopra, si ingrandisce e si
+  // scorre per esplorarla.
+  const baseWidth = aspectRatio && aspectRatio > windowWidth / windowHeight
+    ? windowWidth
+    : (aspectRatio ?? 1) * windowHeight;
+  const imageWidth = baseWidth * zoom;
+  const imageHeight = aspectRatio ? imageWidth / aspectRatio : windowHeight * zoom;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
-        <TouchableOpacity style={styles.modalClose} onPress={onClose}>
-          <Text style={styles.modalCloseText}>✕ Chiudi</Text>
-        </TouchableOpacity>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={styles.modalScrollContent}
+          maximumZoomScale={ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
           minimumZoomScale={1}
-          maximumZoomScale={6}
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
         >
-          {aspectRatio ? (
-            <Image
-              source={{ uri }}
-              style={{ width: fittedWidth, height: fittedHeight }}
-              resizeMode="contain"
-            />
-          ) : null}
+          <ScrollView horizontal contentContainerStyle={styles.modalScrollContent}>
+            {aspectRatio ? (
+              <Image source={{ uri }} style={{ width: imageWidth, height: imageHeight }} resizeMode="contain" />
+            ) : null}
+          </ScrollView>
         </ScrollView>
+
+        <View style={styles.zoomBar}>
+          {ZOOM_LEVELS.map((level) => (
+            <TouchableOpacity
+              key={level}
+              style={[styles.zoomButton, zoom === level && styles.zoomButtonActive]}
+              onPress={() => setZoom(level)}
+            >
+              <Text style={[styles.zoomButtonText, zoom === level && styles.zoomButtonTextActive]}>{level}x</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity style={styles.zoomButton} onPress={onClose}>
+            <Text style={styles.zoomButtonText}>✕ Chiudi</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
 }
+
+const ZOOM_LEVELS = [1, 2, 4, 8];
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.lg, gap: theme.spacing.md },
@@ -217,16 +241,22 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
   modalBackdrop: { flex: 1, backgroundColor: "#000000ee" },
-  modalClose: {
-    position: "absolute",
-    top: 48,
-    right: 20,
-    zIndex: 1,
-    backgroundColor: "#000000aa",
+  modalScrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
+  zoomBar: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: "#000000cc",
+  },
+  zoomButton: {
+    backgroundColor: "#ffffff22",
     borderRadius: theme.radius.sm,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  modalCloseText: { color: "#fff", fontWeight: "700" },
-  modalScrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
+  zoomButtonActive: { backgroundColor: theme.colors.primary },
+  zoomButtonText: { color: "#fff", fontWeight: "700" },
+  zoomButtonTextActive: { color: theme.colors.primaryText },
 });
