@@ -1,5 +1,15 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { getDebugImages } from "../lib/debugImageStore";
 import { theme } from "../lib/theme";
 
@@ -23,6 +33,7 @@ export default function DebugInfoScreen() {
   // la cella era davvero vuota/illeggibile anche nell'immagine, o perche' la
   // rasterizzazione ha tagliato/rovinato qualcosa che nel PDF c'era.
   const debugImages = getDebugImages();
+  const [openImageIndex, setOpenImageIndex] = useState<number | null>(null);
 
   function handleContinue() {
     router.replace({
@@ -50,18 +61,12 @@ export default function DebugInfoScreen() {
               : `Immagini mandate ad Azure (${debugImages.length})`}
           </Text>
           <Text style={styles.hint}>
-            Il PDF non bastava da solo: questa pagina e' stata trasformata in immagine e rimandata ad Azure. Guardala
-            per capire se un giorno mancante era gia' vuoto qui, o se la trasformazione ha rovinato qualcosa.
+            Il PDF non bastava da solo: questa pagina e' stata trasformata in immagine e rimandata ad Azure. Tocca
+            l'immagine per aprirla a schermo intero e ingrandirla.
           </Text>
-          <ScrollView horizontal contentContainerStyle={styles.imagesRow}>
-            {debugImages.map((uri, i) => (
-              <ScrollView key={i} style={styles.imageFrame} horizontal>
-                <ScrollView>
-                  <Image source={{ uri }} style={styles.debugImage} resizeMode="contain" />
-                </ScrollView>
-              </ScrollView>
-            ))}
-          </ScrollView>
+          {debugImages.map((uri, i) => (
+            <DebugImageThumbnail key={i} uri={uri} onPress={() => setOpenImageIndex(i)} />
+          ))}
         </View>
       ) : null}
 
@@ -77,25 +82,130 @@ export default function DebugInfoScreen() {
       <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
         <Text style={styles.primaryButtonText}>Continua alla revisione</Text>
       </TouchableOpacity>
+
+      <ZoomableImageModal
+        uri={openImageIndex !== null ? debugImages[openImageIndex] : null}
+        onClose={() => setOpenImageIndex(null)}
+      />
     </View>
   );
 }
 
-const IMAGE_FRAME_SIZE = 320;
+/** Anteprima dell'immagine a piena larghezza, con le proporzioni vere (mai in un riquadro quadrato fisso: le nostre immagini sono molto larghe e basse, in un riquadro quadrato si vedrebbe solo spazio bianco). */
+function DebugImageThumbnail({ uri, onPress }: { uri: string; onPress: () => void }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (width, height) => {
+        if (!cancelled && height > 0) setAspectRatio(width / height);
+      },
+      () => {
+        // Se non si riesce a leggere la dimensione, si mostra comunque un
+        // riquadro (proporzione ragionevole di ripiego) invece di niente.
+        if (!cancelled) setAspectRatio(4);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [uri]);
+
+  const previewWidth = windowWidth - theme.spacing.lg * 2;
+
+  return (
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.thumbnailWrapper}>
+      {aspectRatio ? (
+        <Image
+          source={{ uri }}
+          style={{ width: previewWidth, height: previewWidth / aspectRatio }}
+          resizeMode="contain"
+        />
+      ) : (
+        <View style={[styles.thumbnailLoading, { width: previewWidth }]} />
+      )}
+      <Text style={styles.thumbnailHint}>Tocca per ingrandire</Text>
+    </TouchableOpacity>
+  );
+}
+
+/** Vista a schermo intero con zoom (pizzico con due dita) per guardare l'immagine nel dettaglio. */
+function ZoomableImageModal({ uri, onClose }: { uri: string | null; onClose: () => void }) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!uri) {
+      setAspectRatio(null);
+      return;
+    }
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (width, height) => {
+        if (!cancelled && height > 0) setAspectRatio(width / height);
+      },
+      () => {
+        if (!cancelled) setAspectRatio(1);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [uri]);
+
+  if (!uri) return null;
+
+  const fittedWidth = windowWidth;
+  const fittedHeight = aspectRatio ? Math.min(windowHeight, windowWidth / aspectRatio) : windowHeight;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <TouchableOpacity style={styles.modalClose} onPress={onClose}>
+          <Text style={styles.modalCloseText}>✕ Chiudi</Text>
+        </TouchableOpacity>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.modalScrollContent}
+          minimumZoomScale={1}
+          maximumZoomScale={6}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+        >
+          {aspectRatio ? (
+            <Image
+              source={{ uri }}
+              style={{ width: fittedWidth, height: fittedHeight }}
+              resizeMode="contain"
+            />
+          ) : null}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.lg, gap: theme.spacing.md },
   hint: { color: theme.colors.textMuted, fontSize: 13 },
   imagesSection: { gap: theme.spacing.xs },
   imagesTitle: { color: theme.colors.text, fontWeight: "700", fontSize: 14 },
-  imagesRow: { gap: theme.spacing.sm },
-  imageFrame: {
-    width: IMAGE_FRAME_SIZE,
-    height: IMAGE_FRAME_SIZE,
+  thumbnailWrapper: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
+    overflow: "hidden",
+    alignItems: "center",
   },
-  debugImage: { width: IMAGE_FRAME_SIZE * 2, height: IMAGE_FRAME_SIZE * 2 },
+  thumbnailLoading: { height: 120, backgroundColor: theme.colors.surfaceAlt },
+  thumbnailHint: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    paddingVertical: 4,
+  },
   textBox: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: theme.radius.md },
   debugText: { color: theme.colors.text, fontSize: 12, fontFamily: "monospace" },
   selectHint: { color: theme.colors.textMuted, fontSize: 11, textAlign: "center" },
@@ -106,4 +216,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  modalBackdrop: { flex: 1, backgroundColor: "#000000ee" },
+  modalClose: {
+    position: "absolute",
+    top: 48,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: "#000000aa",
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modalCloseText: { color: "#fff", fontWeight: "700" },
+  modalScrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
 });
