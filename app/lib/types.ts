@@ -49,4 +49,6 @@ export interface AnalyzeResponse {
   candidateNames?: string[];
   /** Presente solo con la modalita' debug attiva: cosa ha rilevato davvero il motore di analisi. */
   debugText?: string;
+  /** Presente solo con la modalita' debug attiva su un PDF rasterizzato: le immagini (data URI) effettivamente inviate ad Azure, per vedere con i propri occhi cosa "vede" Azure. */
+  debugImages?: string[];
 }

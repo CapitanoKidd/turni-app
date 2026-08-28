@@ -9,6 +9,7 @@ import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { parseShiftGrid, withEveryDayOfMonth, type ShiftGridParseResult } from "../services/shiftGridParser.js";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_DEBUG_IMAGES = 5; // limite di sicurezza: un documento con molte pagine non deve gonfiare a dismisura la risposta
 
 const analyzeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -87,6 +88,7 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     let result: ShiftGridParseResult;
     let routingDebug: string[] = [];
     let debugTables: ExtractedTable[] = [];
+    let rasterizedImages: Buffer[] = [];
 
     if (file.mimetype === DOCX_MIME) {
       debugTables = await extractTablesFromDocx(file.buffer);
@@ -97,6 +99,7 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       result = outcome.result;
       routingDebug = outcome.debug;
       debugTables = outcome.tables;
+      rasterizedImages = outcome.rasterizedImages;
     } else {
       debugTables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
       result = parseShiftGrid(debugTables, target, staffName);
@@ -124,7 +127,16 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       warnings: result.warnings,
       candidateNames: result.candidateNames,
       ...(debugRequested
-        ? { debugText: [...routingDebug, "", formatTablesForDebug(debugTables)].filter(Boolean).join("\n") }
+        ? {
+            debugText: [...routingDebug, "", formatTablesForDebug(debugTables)].filter(Boolean).join("\n"),
+            // Le immagini effettivamente inviate ad Azure per la rasterizzazione
+            // (vuoto se non e' stata necessaria): permettono di vedere con i
+            // propri occhi cosa "vede" Azure, invece di indovinare se un
+            // problema e' nella rasterizzazione o nella lettura del contenuto.
+            debugImages: rasterizedImages
+              .slice(0, MAX_DEBUG_IMAGES)
+              .map((png) => `data:image/png;base64,${png.toString("base64")}`),
+          }
         : {}),
     });
   } catch (error) {

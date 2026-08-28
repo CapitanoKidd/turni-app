@@ -37,11 +37,12 @@ describe("resolvePdfShiftResult", () => {
     const pdf = await makeTestPdf([{ lines: ["Mario Rossi"] }, { lines: ["Luigi Verdi"] }]);
     const provider = new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]);
 
-    const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
+    const { result, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
 
     assert.equal(provider.calls.length, 1, "una sola chiamata: nessun fallback necessario");
     assert.equal(provider.calls[0].mimeType, PDF_MIME, "il tentativo diretto invia un PDF, non un'immagine");
     assert.equal(result.detectedShifts.length, 31);
+    assert.equal(rasterizedImages.length, 0, "nessuna rasterizzazione: niente immagini di debug da mostrare");
   });
 
   it("rasterizza solo la pagina trovata se il risultato diretto e' scarso", async () => {
@@ -51,11 +52,13 @@ describe("resolvePdfShiftResult", () => {
       [rosterTable("Mario Rossi", "M")], // tentativo rasterizzato: va bene
     ]);
 
-    const { result } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
+    const { result, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
 
     assert.equal(provider.calls.length, 2, "deve scattare il fallback di rasterizzazione");
     assert.equal(provider.calls[1].mimeType, PNG_MIME, "il fallback invia un'immagine, come le foto");
     assert.equal(result.detectedShifts.length, 31);
+    assert.equal(rasterizedImages.length, 1, "l'immagine mandata ad Azure deve essere esposta per il debug");
+    assert.ok(rasterizedImages[0].length > 0, "l'immagine non deve essere vuota");
   });
 
   it("unisce diretta e rasterizzata riempiendo solo i giorni mancanti, senza scartare quella diretta", async () => {

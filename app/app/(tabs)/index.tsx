@@ -5,6 +5,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { StaffPickerSheet } from "../../components/StaffPickerSheet";
 import { UploadButton } from "../../components/UploadButton";
 import { analyzeShiftFile, type PickedFile } from "../../lib/api";
+import { setDebugImages } from "../../lib/debugImageStore";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
 import type { AnalyzeResponse } from "../../lib/types";
@@ -55,6 +56,9 @@ export default function HomeScreen() {
         return;
       }
       if (result.debugText) {
+        // Le immagini possono pesare diversi MB come stringa: passano per una
+        // variabile in memoria, non per i parametri di navigazione.
+        setDebugImages(result.debugImages ?? []);
         router.push({
           pathname: "/debug-info",
           params: {

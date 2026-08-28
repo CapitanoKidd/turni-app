@@ -12,6 +12,8 @@ export interface PdfRoutingOutcome {
   /** Le tabelle grezze usate per il risultato scelto: utili per la modalita' debug (vedere cosa ha rilevato Azure). */
   tables: ExtractedTable[];
   debug: string[];
+  /** Le immagini PNG effettivamente inviate ad Azure per la rasterizzazione (vuoto se non e' stata necessaria): utili in modalita' debug per vedere con i propri occhi cosa "vede" Azure, invece di indovinare se il problema e' nella rasterizzazione o nella lettura. */
+  rasterizedImages: Buffer[];
 }
 
 interface Attempt {
@@ -114,7 +116,7 @@ export async function resolvePdfShiftResult(
 
     const hasAmbiguousName = (direct.result.candidateNames?.length ?? 0) > 0;
     if (hasAmbiguousName || direct.result.coverage >= 1) {
-      return { ...direct, debug };
+      return { ...direct, debug, rasterizedImages: [] };
     }
 
     // Anche con una copertura gia' accettabile puo' mancare qualche giorno
@@ -131,7 +133,7 @@ export async function resolvePdfShiftResult(
     const merged = mergeShiftResults(direct.result, rasterizedResult, totalDays);
     debug.push(`risultato unito (diretta + rasterizzata): copertura ${Math.round(merged.coverage * 100)}%`);
 
-    return { result: merged, tables: [...direct.tables, ...rasterizedTables], debug };
+    return { result: merged, tables: [...direct.tables, ...rasterizedTables], debug, rasterizedImages: [rasterizedPng] };
   }
 
   debug.push(
@@ -145,7 +147,7 @@ export async function resolvePdfShiftResult(
   debug.push(`analisi diretta intero documento: copertura ${Math.round(wholeDoc.result.coverage * 100)}%`);
 
   if (!isWeakResult(wholeDoc.result)) {
-    return { ...wholeDoc, debug };
+    return { ...wholeDoc, debug, rasterizedImages: [] };
   }
 
   debug.push("copertura scarsa: rasterizzo tutte le pagine e riprovo");
@@ -154,5 +156,5 @@ export async function resolvePdfShiftResult(
   const rasterized: Attempt = { tables: rasterizedTables, result: parseShiftGrid(rasterizedTables, target, staffName) };
   debug.push(`analisi rasterizzata intero documento: copertura ${Math.round(rasterized.result.coverage * 100)}%`);
 
-  return { ...pickBetterAttempt(wholeDoc, rasterized), debug };
+  return { ...pickBetterAttempt(wholeDoc, rasterized), debug, rasterizedImages: pages };
 }
