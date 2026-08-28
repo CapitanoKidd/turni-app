@@ -4,7 +4,7 @@
   "private": true,
   "description": "Backend stateless per l'analisi delle griglie turni (Azure AI Document Intelligence).",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
