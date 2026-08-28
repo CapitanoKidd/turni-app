@@ -1,6 +1,6 @@
-import { findStaffPage } from "./findStaffPage.js";
+import { findStaffPage, findStaffRowBand } from "./findStaffPage.js";
 import type { ExtractedTable, OcrProvider } from "./ocr/types.js";
-import { extractSinglePagePdf, rasterizeAllPages, rasterizePage } from "./pdfRasterizer.js";
+import { extractSinglePagePdf, rasterizeAllPages, rasterizePage, rasterizeStaffRowBand } from "./pdfRasterizer.js";
 import { parseShiftGrid, type ShiftGridParseResult } from "./shiftGridParser.js";
 
 export const PDF_MIME = "application/pdf";
@@ -122,9 +122,24 @@ export async function resolvePdfShiftResult(
     // Anche con una copertura gia' accettabile puo' mancare qualche giorno
     // (celle che l'estrazione diretta lascia vuote): si prova comunque la
     // stessa pagina rasterizzata, costa una sola pagina Azure in piu', e si
-    // uniscono i due risultati invece di scartarne uno intero.
-    debug.push(`copertura non completa: rasterizzo comunque la pagina ${staffPage.pageIndex + 1} per completare i giorni mancanti`);
-    const rasterizedPng = await rasterizePage(buffer, staffPage.pageIndex);
+    // uniscono i due risultati invece di scartarne uno intero. Si ritaglia
+    // pero' solo l'intestazione + la riga cercata (invece dell'intera
+    // pagina): un'immagine piu' piccola e semplice ha piu' probabilita' di
+    // essere segmentata correttamente da Azure — su documenti densi/colorati
+    // l'intera pagina puo' fallire completamente (0% di copertura). Se il
+    // ritaglio non riesce (riga o intestazione non individuate con
+    // sicurezza), si rasterizza l'intera pagina come rete di sicurezza,
+    // esattamente come si faceva prima.
+    debug.push(`copertura non completa: provo a ritagliare solo intestazione + riga di "${staffName}" per semplificare l'immagine`);
+    const rowBand = await findStaffRowBand(buffer, staffPage.pageIndex, staffName);
+    const rasterizedPng = rowBand
+      ? await rasterizeStaffRowBand(buffer, staffPage.pageIndex, rowBand)
+      : await rasterizePage(buffer, staffPage.pageIndex);
+    debug.push(
+      rowBand
+        ? `pagina ${staffPage.pageIndex + 1} ritagliata: solo intestazione + riga trovata`
+        : `ritaglio non riuscito: rasterizzo l'intera pagina ${staffPage.pageIndex + 1}`,
+    );
     const rasterizedTables = await provider.extractTables(rasterizedPng, PNG_MIME);
     const rasterizedResult = parseShiftGrid(rasterizedTables, target, staffName);
     debug.push(`analisi rasterizzata pagina ${staffPage.pageIndex + 1}: copertura ${Math.round(rasterizedResult.coverage * 100)}%`);

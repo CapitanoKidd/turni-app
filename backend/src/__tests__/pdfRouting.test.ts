@@ -20,6 +20,18 @@ function rosterTableWithCodes(name: string, codes: string[]): ExtractedTable {
   return { rowCount: 2, columnCount: codes.length + 1, cells: [...header, ...row] };
 }
 
+/** Intestazione + righe dati come le avrebbe un vero PDF vettoriale (numeri/nomi come elementi di testo separati), cosi' findStaffRowBand puo' individuare la fascia da ritagliare. */
+function rosterPdfPage(names: string[]) {
+  const dayHeader = Array.from({ length: 10 }, (_, i) => String(i + 1).padStart(2, "0"));
+  return {
+    lines: [
+      "Turnistica Agosto 2026",
+      dayHeader,
+      ...names.map((name) => [name, ...Array.from({ length: 10 }, () => "M")]),
+    ],
+  };
+}
+
 /** Provider Azure finto: restituisce le risposte fornite, una per chiamata, e registra come e' stato chiamato. */
 class FakeOcrProvider implements OcrProvider {
   calls: Array<{ mimeType: string }> = [];
@@ -84,6 +96,22 @@ describe("resolvePdfShiftResult", () => {
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-01")?.rawCode, "M", "sui conflitti vince la lettura diretta");
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-27")?.rawCode, "R", "il giorno mancante nella diretta arriva dalla rasterizzata");
     assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-28")?.rawCode, "R");
+  });
+
+  it("ritaglia solo intestazione + riga (non l'intera pagina) quando la geometria e' individuabile nel PDF", async () => {
+    const pdf = await makeTestPdf([rosterPdfPage(["Anna Bianchi", "Mario Rossi", "Luigi Verdi", "Sara Neri", "Elio Conti"])]);
+    const provider = new FakeOcrProvider([
+      [], // tentativo diretto: nessuna tabella riconosciuta
+      [rosterTable("Mario Rossi", "M", 10)], // tentativo rasterizzato: va bene
+    ]);
+
+    const { debug, rasterizedImages } = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider);
+
+    assert.ok(
+      debug.some((line) => line.includes("ritagliata")),
+      `il debug deve indicare che e' stata usata la fascia ritagliata, non l'intera pagina: ${debug.join(" | ")}`,
+    );
+    assert.equal(rasterizedImages.length, 1);
   });
 
   it("elabora l'intero documento come rete di sicurezza se il nome non viene trovato in nessuna pagina", async () => {
