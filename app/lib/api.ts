@@ -28,6 +28,7 @@ export async function analyzeShiftFile(
   target: { month: number; year: number },
   staffName?: string,
   debug?: boolean,
+  knownCells?: Record<string, string>,
 ): Promise<AnalyzeResponse> {
   const formData = new FormData();
   // React Native accetta questa forma per gli upload multipart.
@@ -40,6 +41,12 @@ export async function analyzeShiftFile(
   formData.append("year", String(target.year));
   if (staffName) formData.append("staffName", staffName);
   if (debug) formData.append("debug", "true");
+  // Simboli gia' imparati sul telefono: permettono al server di completare i
+  // giorni il cui disegno non viene riconosciuto, senza nessun account e
+  // senza che il server conservi niente.
+  if (knownCells && Object.keys(knownCells).length > 0) {
+    formData.append("knownCells", JSON.stringify(knownCells));
+  }
 
   // Niente header Content-Type esplicito: fetch/FormData deve generarlo da
   // solo per includere il "boundary" del multipart. Impostandolo a mano si

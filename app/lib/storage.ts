@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { AppSettings, CalendarEntries, ScheduledNotifications, ShiftType } from "./types";
+import type { AppSettings, CalendarEntries, CellCodeMemory, PendingCellFingerprints, ScheduledNotifications, ShiftType } from "./types";
 
 /**
  * Tutto lo stato dell'app vive solo sul dispositivo (nessun backend/DB):
@@ -11,6 +11,8 @@ const KEYS = {
   calendarEntries: "turni.calendarEntries",
   settings: "turni.settings",
   scheduledNotifications: "turni.scheduledNotifications",
+  cellCodeMemory: "turni.cellCodeMemory",
+  pendingCells: "turni.pendingCells",
 } as const;
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -35,6 +37,19 @@ async function writeJson<T>(key: string, value: T): Promise<void> {
 }
 
 export const storage = {
+  /** Memoria dei simboli imparati (impronta -> codice), solo su questo telefono. */
+  getCellCodeMemory: () => readJson<CellCodeMemory>(KEYS.cellCodeMemory, {}),
+  saveCellCodeMemory: (memory: CellCodeMemory) => writeJson(KEYS.cellCodeMemory, memory),
+  /** Aggiunge quanto imparato in un caricamento, senza perdere cio' che si sapeva gia'. */
+  mergeCellCodeMemory: async (learned: CellCodeMemory) => {
+    if (Object.keys(learned).length === 0) return;
+    const current = await readJson<CellCodeMemory>(KEYS.cellCodeMemory, {});
+    await writeJson(KEYS.cellCodeMemory, { ...current, ...learned });
+  },
+
+  getPendingCells: () => readJson<PendingCellFingerprints>(KEYS.pendingCells, {}),
+  savePendingCells: (pending: PendingCellFingerprints) => writeJson(KEYS.pendingCells, pending),
+
   getShiftTypes: () => readJson<ShiftType[]>(KEYS.shiftTypes, []),
   saveShiftTypes: (shiftTypes: ShiftType[]) => writeJson(KEYS.shiftTypes, shiftTypes),
 

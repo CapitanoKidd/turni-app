@@ -29,6 +29,8 @@ export interface PdfRoutingOutcome {
    * stato risolto.
    */
   unresolvedCells?: Array<{ date: string; fingerprint: string }>;
+  /** Impronta -> codice imparati da questo documento: l'app li conserva per i caricamenti futuri. */
+  learnedCells?: Record<string, string>;
   /**
    * Le parole che l'OCR dice di aver riconosciuto, con la loro confidenza.
    * Arrivano nella stessa risposta delle tabelle (nessuna chiamata in piu').
@@ -41,6 +43,8 @@ export interface PdfRoutingOutcome {
 export interface PdfRoutingOptions {
   /** Se true, genera le anteprime di cosa e' stato inviato (costa solo CPU locale, nessuna chiamata Azure). */
   debug?: boolean;
+  /** Impronte gia' note dai caricamenti precedenti, conservate dall'app sul telefono. */
+  knownCells?: Record<string, string>;
 }
 
 /**
@@ -115,6 +119,7 @@ export async function resolvePdfShiftResult(
             target,
             staffName,
             detectedShifts: result.detectedShifts,
+            knownCodesByFingerprint: options.knownCells,
           });
 
     const finalResult = filled
@@ -133,6 +138,7 @@ export async function resolvePdfShiftResult(
       sentPreviewImages,
       recognizedWords: provider.getLastRecognizedWords?.() ?? [],
       unresolvedCells: filled?.unresolved ?? [],
+      learnedCells: filled?.learned ?? {},
     };
   }
 

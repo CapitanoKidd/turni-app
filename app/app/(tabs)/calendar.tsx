@@ -54,6 +54,21 @@ export default function CalendarScreen() {
     setEntries(next);
     await storage.saveCalendarEntries(next);
 
+    // Se questo giorno era rimasto "in sospeso" (conosciamo il disegno della
+    // cella ma non il suo significato), l'assegnazione manuale dell'utente e'
+    // proprio la risposta che mancava: la impariamo, cosi' il mese prossimo
+    // quel simbolo viene riconosciuto da solo.
+    if (shiftTypeId) {
+      const pending = await storage.getPendingCells();
+      const fingerprint = pending[selectedDate];
+      const label = shiftTypes.find((s) => s.id === shiftTypeId)?.label.trim();
+      if (fingerprint && label) {
+        await storage.mergeCellCodeMemory({ [fingerprint]: label.toUpperCase() });
+        const { [selectedDate]: _learned, ...rest } = pending;
+        await storage.savePendingCells(rest);
+      }
+    }
+
     if (settings?.autoAlarmEnabled) {
       if (shiftTypeId) {
         await scheduleAlarmsForEntries({ [selectedDate]: shiftTypeId }, shiftTypes);

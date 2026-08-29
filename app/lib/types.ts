@@ -51,4 +51,20 @@ export interface AnalyzeResponse {
   debugText?: string;
   /** Presente solo con la modalita' debug attiva su un PDF rasterizzato: le immagini (data URI) effettivamente inviate ad Azure, per vedere con i propri occhi cosa "vede" Azure. */
   debugImages?: string[];
+  /** Giorni il cui simbolo non e' stato riconosciuto da nessuna parte: quando l'utente li completa a mano, l'app impara. */
+  unresolvedCells?: Array<{ date: string; fingerprint: string }>;
+  /** Simboli riconosciuti in questo documento (impronta -> codice): l'app li conserva per i caricamenti futuri. */
+  learnedCells?: Record<string, string>;
 }
+
+/**
+ * Memoria dei simboli: impronta del disegno di una cella -> codice turno.
+ * Vive solo sul telefono (nessun account, nessun server). Serve perche' molte
+ * turnistiche disegnano i codici come immagini invece che come testo: una
+ * volta imparato cosa significa un disegno, i mesi successivi lo riconoscono
+ * subito.
+ */
+export type CellCodeMemory = Record<string, string>;
+
+/** Giorni di cui conosciamo il disegno ma non ancora il significato: se l'utente li completa a mano, quel significato lo impariamo. */
+export type PendingCellFingerprints = Record<string, string>; // data -> impronta

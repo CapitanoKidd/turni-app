@@ -14,10 +14,16 @@ export interface CellImageFillResult {
   debug: string[];
   /**
    * I giorni rimasti senza codice perche' il loro disegno non e' stato letto
-   * in nessun punto del documento. Sono i candidati da far definire una volta
-   * all'utente (e poi, in futuro, da ricordare fra un mese e l'altro).
+   * in nessun punto del documento: da far definire una volta all'utente.
+   * L'app li ricorda per impronta, cosi' il mese dopo sono gia' noti.
    */
   unresolved: Array<{ date: string; fingerprint: string }>;
+  /**
+   * Cosa abbiamo imparato in questo documento: impronta -> codice. L'app la
+   * conserva sul telefono e la rispedisce al caricamento successivo, cosi' la
+   * conoscenza si accumula nel tempo invece di ripartire da zero ogni volta.
+   */
+  learned: Record<string, string>;
 }
 
 interface FillInput {
@@ -27,6 +33,13 @@ interface FillInput {
   target: { year: number; month1To12: number };
   staffName: string;
   detectedShifts: DetectedShift[];
+  /**
+   * Impronte gia' note dai caricamenti precedenti (memoria dell'app). Hanno
+   * la precedenza sulla legenda dedotta qui: sono state confermate
+   * dall'utente, mentre quella dedotta viene da una lettura automatica che
+   * puo' sbagliare.
+   */
+  knownCodesByFingerprint?: Record<string, string>;
 }
 
 /**
@@ -44,8 +57,8 @@ interface FillInput {
  * niente griglia riconoscibile) restituisce i turni immutati.
  */
 export async function fillGapsFromCellImages(input: FillInput): Promise<CellImageFillResult> {
-  const { buffer, pageIndex, tables, target, staffName, detectedShifts } = input;
-  const unchanged: CellImageFillResult = { detectedShifts, debug: [], unresolved: [] };
+  const { buffer, pageIndex, tables, target, staffName, detectedShifts, knownCodesByFingerprint } = input;
+  const unchanged: CellImageFillResult = { detectedShifts, debug: [], unresolved: [], learned: {} };
 
   const totalDays = new Date(target.year, target.month1To12, 0).getDate();
   const missingDays = findMissingDays(detectedShifts, target, totalDays);
@@ -71,17 +84,26 @@ export async function fillGapsFromCellImages(input: FillInput): Promise<CellImag
   const grid = extractRosterGrid(tables, target);
   if (grid.length === 0) return { ...unchanged, debug: ["recupero da disegni: nessuna turnistica riconosciuta"] };
 
-  const legend = buildLegend(grid, fingerprintsByRow);
+  const documentLegend = buildLegend(grid, fingerprintsByRow);
+  // Cio' che l'utente ha gia' confermato in passato prevale su cio' che
+  // deduciamo ora da una lettura automatica.
+  const legend = new Map(documentLegend);
+  for (const [fingerprint, code] of Object.entries(knownCodesByFingerprint ?? {})) {
+    legend.set(fingerprint, code);
+  }
   const ownFingerprints = findRowFingerprints(fingerprintsByRow, staffName);
 
+  const learned = Object.fromEntries(documentLegend);
+  const knownCount = Object.keys(knownCodesByFingerprint ?? {}).length;
   const debug = [
     `recupero da disegni: ${images.length} celle disegnate, ${new Set(images.map((i) => i.fingerprint)).size} disegni distinti`,
-    `legenda imparata dalle letture riuscite: ${legend.size} disegni riconosciuti`,
+    `legenda imparata dalle letture riuscite: ${documentLegend.size} disegni riconosciuti` +
+      (knownCount > 0 ? ` + ${knownCount} gia' noti dai caricamenti precedenti` : ""),
   ];
 
   if (!ownFingerprints) {
     debug.push(`recupero da disegni: riga di "${staffName}" non individuata nella pagina`);
-    return { ...unchanged, debug };
+    return { ...unchanged, debug, learned };
   }
 
   const recovered: DetectedShift[] = [];
@@ -108,7 +130,7 @@ export async function fillGapsFromCellImages(input: FillInput): Promise<CellImag
   );
 
   const merged = [...detectedShifts, ...recovered].sort((a, b) => a.date.localeCompare(b.date));
-  return { detectedShifts: merged, debug, unresolved };
+  return { detectedShifts: merged, debug, unresolved, learned };
 }
 
 /**

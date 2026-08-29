@@ -49,7 +49,17 @@ export default function HomeScreen() {
   async function runAnalysis(file: PickedFile, staffName?: string) {
     setLoading(true);
     try {
-      const result = await analyzeShiftFile(file, { month, year }, staffName, debugMode);
+      const knownCells = await storage.getCellCodeMemory();
+      const result = await analyzeShiftFile(file, { month, year }, staffName, debugMode, knownCells);
+
+      // Cio' che il documento ci ha insegnato resta sul telefono: al prossimo
+      // caricamento quei simboli sono gia' noti.
+      await storage.mergeCellCodeMemory(result.learnedCells ?? {});
+      // I giorni il cui simbolo non e' noto restano "in sospeso": se l'utente
+      // li completa a mano nel calendario, l'app impara da quel gesto.
+      await storage.savePendingCells(
+        Object.fromEntries((result.unresolvedCells ?? []).map((c) => [c.date, c.fingerprint])),
+      );
       if (result.candidateNames && result.candidateNames.length > 0) {
         setPendingFile(file);
         setCandidateNames(result.candidateNames);

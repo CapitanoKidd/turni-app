@@ -57,6 +57,21 @@ function buildOcrProvider(target: { year: number; month1To12: number }): OcrProv
 
 class ServiceUnavailableError extends Error {}
 
+/** Impronte note inviate dall'app (JSON in un campo del form). Un dato malformato viene semplicemente ignorato. */
+function parseKnownCells(raw: unknown): Record<string, string> | undefined {
+  if (typeof raw !== "string" || raw.trim().length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    const entries = Object.entries(parsed as Record<string, unknown>)
+      .filter(([, value]) => typeof value === "string" && value.length > 0)
+      .slice(0, 2000) as Array<[string, string]>;
+    return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Mostra le tabelle grezze rilevate (righe/colonne/celle), leggibili da un umano: serve alla modalita' debug. */
 function formatTablesForDebug(tables: ExtractedTable[]): string {
   if (tables.length === 0) return "(nessuna tabella rilevata)";
@@ -124,6 +139,7 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
   const staffNameRaw = typeof req.body?.staffName === "string" ? req.body.staffName.trim() : "";
   const staffName = staffNameRaw || undefined;
   const debugRequested = req.body?.debug === "true" || req.body?.debug === true;
+  const knownCells = parseKnownCells(req.body?.knownCells);
 
   try {
     let result: ShiftGridParseResult;
@@ -131,6 +147,8 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     let debugTables: ExtractedTable[] = [];
     let sentPreviewImages: Buffer[] = [];
     let recognizedWords: RecognizedWord[] = [];
+    let unresolvedCells: Array<{ date: string; fingerprint: string }> = [];
+    let learnedCells: Record<string, string> = {};
 
     if (file.mimetype === DOCX_MIME) {
       debugTables = await extractTablesFromDocx(file.buffer);
@@ -139,12 +157,15 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       const provider = buildOcrProvider(target);
       const outcome = await resolvePdfShiftResult(file.buffer, target, staffName, provider, {
         debug: debugRequested,
+        knownCells,
       });
       result = outcome.result;
       routingDebug = outcome.debug;
       debugTables = outcome.tables;
       sentPreviewImages = outcome.sentPreviewImages;
       recognizedWords = outcome.recognizedWords;
+      unresolvedCells = outcome.unresolvedCells ?? [];
+      learnedCells = outcome.learnedCells ?? {};
     } else {
       debugTables = await buildOcrProvider(target).extractTables(file.buffer, file.mimetype);
       result = parseShiftGrid(debugTables, target, staffName);
@@ -171,6 +192,11 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       detectedShifts,
       warnings: result.warnings,
       candidateNames: result.candidateNames,
+      // Memoria dei simboli: cosa resta da farsi spiegare dall'utente, e cosa
+      // abbiamo imparato qui. L'app conserva tutto sul telefono: il backend
+      // resta senza memoria e senza account.
+      ...(unresolvedCells.length > 0 ? { unresolvedCells } : {}),
+      ...(Object.keys(learnedCells).length > 0 ? { learnedCells } : {}),
       ...(debugRequested
         ? {
             debugText: [

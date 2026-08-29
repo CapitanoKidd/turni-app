@@ -158,6 +158,59 @@ describe("fillGapsFromCellImages", () => {
     assert.equal(out.unresolved[0].date, "2026-08-02");
   });
 
+  it("usa i simboli gia' noti dai caricamenti precedenti per risolvere cio' che il documento non spiega", async () => {
+    // "X" compare solo nella riga di Mario e l'OCR lo salta sempre: in questo
+    // documento non c'e' modo di dedurlo. Ma l'utente lo aveva gia' definito
+    // in passato, e quella memoria arriva dal telefono.
+    const rows = [
+      { name: "Mario Rossi", codes: ["M", "X", "M", "M", "M", "M", "M", "M", "M", "M"] },
+      { name: "Anna Bianchi", codes: ["M", "M", "M", "M", "M", "M", "M", "M", "M", "M"] },
+    ];
+    const pdf = await makeRosterPdf(rows);
+    const table = ocrTable(rows, { "Mario Rossi": [2] });
+    const detectedShifts = rows[0].codes
+      .map((code, i) => ({ date: `2026-08-${String(i + 1).padStart(2, "0")}`, rawCode: code, confidence: 0.85 }))
+      .filter((_, i) => i !== 1);
+
+    // Si ricava l'impronta del giorno 2 come farebbe l'app dopo il primo
+    // caricamento (arriva in `unresolved`).
+    const first = await fillGapsFromCellImages({
+      buffer: pdf, pageIndex: 0, tables: [table], target: TARGET,
+      staffName: "Mario Rossi", detectedShifts,
+    });
+    assert.equal(first.unresolved.length, 1, "al primo giro il simbolo e' sconosciuto");
+    const fingerprint = first.unresolved[0].fingerprint;
+
+    // Secondo caricamento: l'utente nel frattempo ha definito quel giorno, e
+    // l'app rispedisce la memoria.
+    const second = await fillGapsFromCellImages({
+      buffer: pdf, pageIndex: 0, tables: [table], target: TARGET,
+      staffName: "Mario Rossi", detectedShifts,
+      knownCodesByFingerprint: { [fingerprint]: "X" },
+    });
+
+    assert.equal(second.detectedShifts.length, DAYS, "con la memoria il giorno viene risolto da solo");
+    assert.equal(second.detectedShifts.find((s) => s.date === "2026-08-02")?.rawCode, "X");
+    assert.deepEqual(second.unresolved, [], "niente piu' da chiedere all'utente");
+  });
+
+  it("restituisce cio' che ha imparato, cosi' l'app puo' conservarlo", async () => {
+    const rows = [{ name: "Mario Rossi", codes: ["M", "M", "P", "P", "-", "-", "M", "P", "M", "P"] }];
+    const pdf = await makeRosterPdf(rows);
+    const table = ocrTable(rows);
+    const detectedShifts = rows[0].codes.map((code, i) => ({
+      date: `2026-08-${String(i + 1).padStart(2, "0")}`, rawCode: code, confidence: 0.85,
+    }));
+
+    const out = await fillGapsFromCellImages({
+      buffer: pdf, pageIndex: 0, tables: [table], target: TARGET,
+      staffName: "Mario Rossi", detectedShifts: detectedShifts.slice(0, 9),
+    });
+
+    const learnedCodes = new Set(Object.values(out.learned));
+    assert.deepEqual(learnedCodes, new Set(["M", "P", "-"]), "deve aver imparato i tre simboli della pagina");
+  });
+
   it("lascia i turni immutati se il PDF non ha celle disegnate", async () => {
     const doc = await PDFDocument.create();
     doc.addPage([300, 300]);
