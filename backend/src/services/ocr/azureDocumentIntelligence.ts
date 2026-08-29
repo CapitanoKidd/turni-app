@@ -2,8 +2,16 @@ import type { ExtractedTable, OcrProvider, RecognizedWord, TableCell } from "./t
 
 const API_VERSION = "2024-11-30";
 const MODEL_ID = "prebuilt-layout";
-const POLL_INTERVAL_MS = 1500;
-const MAX_POLL_ATTEMPTS = 40; // ~1 minuto di attesa massima
+const POLL_INTERVAL_MS = 2000;
+// ~5 minuti di attesa massima. Una singola pagina PDF ritagliata di solito
+// finisce in pochi secondi, ma una foto a piena risoluzione (l'app scatta a
+// qualita' 0.9, spesso 8-12 megapixel) da analizzare per intero costa
+// all'OCR molto piu' lavoro, e il livello gratuito F0 gira su calcolo
+// condiviso/meno prioritario: un limite di 1 minuto puo' scadere prima che
+// Azure abbia finito, facendo fallire l'analisi anche quando avrebbe dato
+// un risultato buono qualche secondo dopo. Non e' una chiamata in piu': e'
+// la stessa unica chiamata, a cui diamo piu' tempo per rispondere.
+const MAX_POLL_ATTEMPTS = 150;
 
 interface AzureAnalyzeResultTable {
   rowCount: number;

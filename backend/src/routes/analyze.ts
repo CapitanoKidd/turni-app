@@ -226,7 +226,13 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     }
     // eslint-disable-next-line no-console
     console.error("Errore durante l'analisi del file:", error);
-    res.status(500).json({ success: false, error: "Analisi del documento fallita. Riprova." });
+    // Il messaggio, quando lo generiamo noi (timeout, rifiuto di Azure...),
+    // non contiene mai segreti (endpoint/chiave non compaiono in nessun
+    // errore che costruiamo): mostrarlo all'utente, invece di un generico
+    // "riprova", e' cio' che permette di capire cosa e' andato storto senza
+    // dover leggere i log del server ogni volta.
+    const message = error instanceof Error && error.message ? error.message : "Analisi del documento fallita. Riprova.";
+    res.status(500).json({ success: false, error: message });
   }
   // Nota: `file.buffer` vive solo nello scope di questa richiesta (multer
   // memoryStorage) e viene garbage-collected subito dopo la risposta:

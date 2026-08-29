@@ -90,7 +90,10 @@ export async function resolvePdfShiftResult(
         result: { detectedShifts: fromText.detectedShifts, warnings: [], coverage: fromText.coverage },
         tables: [],
         debug,
-        sentPreviewImages: options.debug ? [await rasterizePage(buffer, staffPage.pageIndex)] : [],
+        // Nessuna anteprima: qui non e' stato inviato nulla ad Azure, e
+        // mostrarne una comunque (anche se innocua) direbbe il falso
+        // all'utente nella schermata di debug.
+        sentPreviewImages: [],
         recognizedWords: [],
         unresolvedCells: [],
       };

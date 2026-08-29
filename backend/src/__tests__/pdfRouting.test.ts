@@ -1,10 +1,33 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import type { ExtractedTable, OcrProvider, RecognizedWord, TableCell } from "../services/ocr/types.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { makeTestPdf } from "./fixtures/testPdf.js";
 
 const TARGET_2026_08 = { year: 2026, month1To12: 8 };
+
+/** Turnistica con i codici scritti come TESTO per tutti i 31 giorni: quella che si legge senza interpellare Azure. */
+async function makeTextRosterPdf(rows: Array<{ name: string; codes: string[] }>, days = 31): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([700, 320]);
+  const x0 = 120;
+  const step = 18;
+  const headerY = 260;
+
+  for (let d = 1; d <= days; d++) {
+    page.drawText(String(d).padStart(2, "0"), { x: x0 + (d - 1) * step, y: headerY, size: 7, font });
+  }
+  rows.forEach((row, i) => {
+    const y = headerY - 25 * (i + 1);
+    page.drawText(row.name, { x: 20, y, size: 8, font });
+    row.codes.forEach((code, d) => {
+      page.drawText(code, { x: x0 + d * step, y, size: 7, font });
+    });
+  });
+  return Buffer.from(await doc.save());
+}
 
 function rosterTable(name: string, code: string, days = 31): ExtractedTable {
   return rosterTableWithCodes(name, Array.from({ length: days }, () => code));
@@ -150,5 +173,22 @@ describe("resolvePdfShiftResult", () => {
     );
     assert.equal(verbose.sentPreviewImages.length, 1, "con il debug si mostra cosa e' stato inviato");
     assert.ok(verbose.sentPreviewImages[0].subarray(0, 4).equals(PNG_MAGIC));
+  });
+
+  it("quando i turni si leggono dal testo del PDF, in modalita' debug non genera nessuna anteprima 'inviata ad Azure' (perche' non e' stato inviato nulla)", async () => {
+    const codes = Array.from({ length: 31 }, () => "M");
+    const pdf = await makeTextRosterPdf([{ name: "Mario Rossi", codes }]);
+    const provider = new FakeOcrProvider([[rosterTable("Mario Rossi", "M")]]);
+
+    const outcome = await resolvePdfShiftResult(pdf, TARGET_2026_08, "Mario Rossi", provider, { debug: true });
+
+    assert.equal(provider.calls.length, 0, "il testo basta: nessuna chiamata ad Azure");
+    assert.equal(outcome.result.detectedShifts.length, 31);
+    assert.deepEqual(
+      outcome.sentPreviewImages,
+      [],
+      "nessuna anteprima 'inviata ad Azure' quando in realta' non e' stato inviato nulla",
+    );
+    assert.ok(outcome.debug.some((line) => line.includes("NESSUNA chiamata ad Azure")));
   });
 });
