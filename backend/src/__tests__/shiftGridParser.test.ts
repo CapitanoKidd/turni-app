@@ -136,6 +136,63 @@ describe("parseShiftGrid — turnistica multi-persona", () => {
     assert.deepEqual(dates, sortedDates, "i turni devono uscire in ordine di data, non nell'ordine in cui le colonne sono state unite");
   });
 
+  it("non scambia le colonne di riepilogo mensile per tipo di turno (M/P/N/S/R/RO/CO/CS) per intestazioni di giorno (bug reale: il turno del giorno 1 veniva sostituito dal conteggio mensile)", () => {
+    // Documento reale: dopo l'ultima colonna dei giorni (31) seguono, sulla
+    // stessa riga di intestazione o una vicina (dentro la finestra cercata
+    // per recuperare i giorni spezzati), le colonne "M P N S R RO CO CS" con
+    // i conteggi mensili per tipo di turno di quel dipendente — numeri da
+    // 1 a 31 anche loro, quindi candidati a essere scambiati per giorni.
+    const dayHeader: TableCell[] = Array.from({ length: 31 }, (_, i) => ({
+      rowIndex: 3,
+      columnIndex: i + 2,
+      text: String(i + 1),
+    }));
+    // Riga di riepilogo, nella finestra di intestazione: conteggi che
+    // COINCIDONO con giorni della griglia (7, 3, 1, 6 sono tutti <= 31).
+    const totalsRow: TableCell[] = [
+      { rowIndex: 2, columnIndex: 34, text: "7" }, // M
+      { rowIndex: 2, columnIndex: 35, text: "7" }, // P
+      { rowIndex: 2, columnIndex: 36, text: "3" }, // N
+      { rowIndex: 2, columnIndex: 37, text: "7" }, // S
+      { rowIndex: 2, columnIndex: 38, text: "1" }, // R
+      { rowIndex: 2, columnIndex: 39, text: "6" }, // RO
+      { rowIndex: 2, columnIndex: 40, text: "6" }, // CO
+      { rowIndex: 2, columnIndex: 41, text: "6" }, // CS
+    ];
+    // Turni reali del dipendente: CO per tutto agosto, tranne un paio di
+    // giorni facilmente distinguibili, cosi' un giorno "rubato" dal
+    // riepilogo si nota subito.
+    const codes = Array.from({ length: 31 }, (_, i) => (i === 8 ? "M" : "CO"));
+    const dataRow: TableCell[] = [
+      { rowIndex: 4, columnIndex: 0, text: "Vannucci M. Cristina" },
+      ...codes.map((code, i) => ({ rowIndex: 4, columnIndex: i + 2, text: code })),
+      // Stessi conteggi anche sulla riga del dipendente (colonne di riepilogo per riga, non solo per colonna).
+      { rowIndex: 4, columnIndex: 34, text: "6" },
+      { rowIndex: 4, columnIndex: 35, text: "4" },
+      { rowIndex: 4, columnIndex: 36, text: "4" },
+      { rowIndex: 4, columnIndex: 37, text: "4" },
+      { rowIndex: 4, columnIndex: 38, text: "6" },
+      { rowIndex: 4, columnIndex: 39, text: "0" },
+      { rowIndex: 4, columnIndex: 40, text: "7" },
+      { rowIndex: 4, columnIndex: 41, text: "0" },
+    ];
+
+    const table: ExtractedTable = {
+      rowCount: 5,
+      columnCount: 42,
+      cells: [...dayHeader, ...totalsRow, ...dataRow],
+    };
+
+    const result = parseShiftGrid([table], TARGET_2026_08, "Vannucci M. Cristina");
+
+    assert.equal(result.detectedShifts.length, 31);
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-01")?.rawCode, "CO", "il giorno 1 non deve prendere il conteggio mensile dei turni R");
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-03")?.rawCode, "CO", "il giorno 3 non deve prendere il conteggio mensile dei turni N");
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-06")?.rawCode, "CO", "il giorno 6 non deve prendere il conteggio mensile dei turni RO");
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-07")?.rawCode, "CO", "il giorno 7 non deve prendere il conteggio mensile dei turni M");
+    assert.equal(result.detectedShifts.find((s) => s.date === "2026-08-09")?.rawCode, "M", "il vero turno M del giorno 9 resta quello");
+  });
+
   it("deduce per posizione i giorni la cui intestazione e' illeggibile quella volta (Azure non legge sempre l'header allo stesso modo)", () => {
     // Stesso documento, due chiamate diverse ad Azure: la seconda volta i
     // giorni 3 e 4 vengono fusi con il numero di settimana in una cella

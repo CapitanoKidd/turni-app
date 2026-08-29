@@ -270,7 +270,24 @@ function inferDayByColumn(confident: Map<number, number>, totalDays: number): Ma
   const [dominantOffset, dominantCount] = [...offsetCounts.entries()].sort((a, b) => b[1] - a[1])[0];
   if (dominantCount / confident.size < 0.6) return confident; // passo poco chiaro: meglio non indovinare oltre
 
-  const result = new Map(confident);
+  // Solo le celle che rispettano il passo dominante sono davvero intestazioni
+  // di giorno. Molte turnistiche hanno, vicino alla riga dei giorni, colonne
+  // di riepilogo mensile per tipo di turno (es. "M P N S R RO CO CS" con i
+  // relativi conteggi) che sono anche loro numeri da 1 a 31: senza questo
+  // controllo finivano scambiate per intestazioni, rubando la colonna di un
+  // giorno vero (caso reale: un impiegato aveva il turno del giorno 1
+  // sostituito dal SUO conteggio mensile di turni "R", perche' entrambi
+  // erano "6" e la colonna del conteggio cadeva nella stessa finestra di
+  // righe cercata per recuperare le intestazioni spezzate). Una colonna di
+  // riepilogo ha un passo (colonna - giorno) diverso da tutte le altre,
+  // quindi non vince mai la maggioranza e viene scartata qui; i giorni
+  // davvero spezzati su piu' righe (il caso che questa finestra doveva
+  // risolvere) condividono invece lo stesso passo della riga principale e
+  // restano.
+  const result = new Map<number, number>();
+  for (const [columnIndex, day] of confident) {
+    if (columnIndex - day === dominantOffset) result.set(columnIndex, day);
+  }
   for (let day = 1; day <= totalDays; day++) {
     const columnIndex = day + dominantOffset;
     if (!result.has(columnIndex)) result.set(columnIndex, day);
