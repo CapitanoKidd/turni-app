@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, type PropsWithChildren, type ReactNode } from "react";
+import { useEffect, useRef, type PropsWithChildren, type ReactNode } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { CopilotProvider, CopilotStep, useCopilot, walkthroughable, type TooltipProps } from "react-native-copilot";
 import { storage } from "./storage";
@@ -74,14 +74,24 @@ function AppTooltip({ labels }: TooltipProps) {
 /** Nessun elemento visivo: solo la logica che avvia il tour e salva il completamento. */
 function TutorialController() {
   const { start, copilotEvents } = useCopilot();
+  // "start" cambia identita' ogni volta che uno step si registra/deregistra
+  // (cioe' a ogni navigazione, dato che i CopilotStep delle schermate che si
+  // smontano/montano vanno e vengono): tenerla in un ref evita che l'effetto
+  // sotto si ripeta e faccia ripartire il tour dal primo passo ogni volta
+  // che l'utente naviga con "Avanti".
+  const startRef = useRef(start);
+  startRef.current = start;
+  const hasAutoStarted = useRef(false);
 
   useEffect(() => {
+    if (hasAutoStarted.current) return;
+    hasAutoStarted.current = true;
     storage.getTutorialCompleted().then((done) => {
       // Piccolo ritardo: al primo render il target del passo 1 (icona tab
       // Impostazioni) potrebbe non essere ancora misurabile.
-      if (!done) setTimeout(() => start(), 400);
+      if (!done) setTimeout(() => startRef.current(), 400);
     });
-  }, [start]);
+  }, []);
 
   useEffect(() => {
     const onStop = () => {
