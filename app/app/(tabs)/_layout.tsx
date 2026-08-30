@@ -1,19 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { View } from "react-native";
 import { theme } from "../../lib/theme";
-import { useTutorialTarget } from "../../lib/tutorial";
+import { CopilotStep, WalkthroughableView } from "../../lib/tutorial";
 
-/** Avvolge l'icona di un tab in un target del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
+/** Avvolge l'icona di un tab in uno step del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
 function TutorialTabIcon({
   id,
+  order,
+  text,
   children,
 }: {
-  id: "tab-settings" | "tab-calendar" | "tab-home";
-  children: React.ReactNode;
+  id: string;
+  order: number;
+  text: string;
+  children: React.ReactElement;
 }) {
-  const ref = useTutorialTarget(id);
-  return <View ref={ref}>{children}</View>;
+  return (
+    <CopilotStep name={id} order={order} text={text}>
+      <WalkthroughableView>{children}</WalkthroughableView>
+    </CopilotStep>
+  );
 }
 
 export default function TabsLayout() {
@@ -33,7 +39,7 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <TutorialTabIcon id="tab-home">
+            <TutorialTabIcon id="tab-home" order={7} text="Torniamo alla Home.">
               <Ionicons name="home" size={size} color={color} />
             </TutorialTabIcon>
           ),
@@ -44,7 +50,7 @@ export default function TabsLayout() {
         options={{
           title: "Calendario",
           tabBarIcon: ({ color, size }) => (
-            <TutorialTabIcon id="tab-calendar">
+            <TutorialTabIcon id="tab-calendar" order={5} text="Ora vai al calendario.">
               <Ionicons name="calendar" size={size} color={color} />
             </TutorialTabIcon>
           ),
@@ -55,7 +61,7 @@ export default function TabsLayout() {
         options={{
           title: "Impostazioni",
           tabBarIcon: ({ color, size }) => (
-            <TutorialTabIcon id="tab-settings">
+            <TutorialTabIcon id="tab-settings" order={1} text="Benvenuto! Inizia da qui: tocca Impostazioni.">
               <Ionicons name="settings" size={size} color={color} />
             </TutorialTabIcon>
           ),

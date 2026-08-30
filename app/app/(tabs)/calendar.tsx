@@ -8,7 +8,7 @@ import { MonthSummary } from "../../components/MonthSummary";
 import { cancelAlarmsForDates, ensureNotificationPermission, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { useTutorialTarget } from "../../lib/tutorial";
+import { CopilotStep, WalkthroughableView } from "../../lib/tutorial";
 import type { CalendarEntries, CalendarOverrides, DayShiftOverride, ShiftType } from "../../lib/types";
 
 const MONTH_NAMES = [
@@ -106,7 +106,6 @@ export default function CalendarScreen() {
 
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const hasShifts = Object.keys(entries).some((date) => date.startsWith(monthPrefix));
-  const calendarOverviewTarget = useTutorialTarget("calendar-overview");
 
   function handleResetCalendar() {
     const datesThisMonth = Object.keys(entries).filter((date) => date.startsWith(monthPrefix));
@@ -161,23 +160,29 @@ export default function CalendarScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View ref={calendarOverviewTarget} style={{ gap: theme.spacing.md }}>
-          <MonthCalendar
-            year={year}
-            month1To12={month}
-            entries={entries}
-            overrides={overrides}
-            shiftTypes={shiftTypes}
-            onDayPress={setSelectedDate}
-          />
-          {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
-          <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
-          {hasShifts ? (
-            <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
-              <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        <CopilotStep
+          name="calendar-overview"
+          order={6}
+          text="Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno."
+        >
+          <WalkthroughableView style={{ gap: theme.spacing.md }}>
+            <MonthCalendar
+              year={year}
+              month1To12={month}
+              entries={entries}
+              overrides={overrides}
+              shiftTypes={shiftTypes}
+              onDayPress={setSelectedDate}
+            />
+            {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
+            <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
+            {hasShifts ? (
+              <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
+                <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
+              </TouchableOpacity>
+            ) : null}
+          </WalkthroughableView>
+        </CopilotStep>
       )}
 
       <DayShiftSheet
