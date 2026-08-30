@@ -153,6 +153,7 @@ const MOVE_THRESHOLD = 1; // px: sotto questa soglia non si aggiorna, per non "t
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   const [stepIndex, setStepIndex] = useState<number | null>(null); // null finche' non sappiamo se va mostrato
   const [rect, setRect] = useState<Rect | null>(null);
+  const [rawMeasure, setRawMeasure] = useState("mai chiamato"); // DEBUG: valori grezzi restituiti da measureInWindow, anche se non validi
   const targetsRef = useRef(new Map<TutorialStepId, RefObject<View>>());
   const pathname = usePathname();
   const { height: windowHeight } = useWindowDimensions();
@@ -227,8 +228,18 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     function measure() {
       const ref = targetsRef.current.get(currentStep!.id);
       const node = ref?.current;
-      if (!node?.measureInWindow) return;
+      if (!node) {
+        setRawMeasure("nodo assente");
+        return;
+      }
+      if (!node.measureInWindow) {
+        setRawMeasure("measureInWindow assente sul nodo");
+        return;
+      }
       node.measureInWindow((x, y, width, height) => {
+        if (cancelled) return;
+        // DEBUG: valori grezzi, PRIMA di qualunque controllo di validita'.
+        setRawMeasure(`x=${x} y=${y} w=${width} h=${height}`);
         // measureInWindow puo' restituire NaN (non zero: proprio NaN) su
         // Android quando la vista non e' ancora "attaccata" alla finestra
         // (es. subito dopo un remount/Fast Refresh) — un controllo tipo
@@ -237,7 +248,7 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
         // passerebbe indisturbato, finendo in uno stile nativo e mandando
         // in crash il render ("<<NaN>>" non e' un argomento valido).
         // Number.isFinite e' l'unico controllo che lo rileva davvero.
-        if (cancelled || ![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+        if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
         setRect((prev) => {
           if (
             prev &&
@@ -311,6 +322,7 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
           {rect ? "trovato" : "no"} path={pathname}
           {"\n"}bersagli registrati: {targetsRef.current.size === 0 ? "(nessuno)" : [...targetsRef.current.keys()].join(", ")}
           {"\n"}nodo attivo: {currentStep ? (targetsRef.current.get(currentStep.id)?.current ? "presente" : "MANCANTE") : "-"}
+          {"\n"}misura grezza: {rawMeasure}
         </Text>
       </View>
       {/*
