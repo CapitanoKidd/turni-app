@@ -11,7 +11,18 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Animated, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  findNodeHandle,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  UIManager,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { storage } from "./storage";
 import { theme } from "./theme";
 
@@ -153,7 +164,16 @@ const MOVE_THRESHOLD = 1; // px: sotto questa soglia non si aggiorna, per non "t
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   const [stepIndex, setStepIndex] = useState<number | null>(null); // null finche' non sappiamo se va mostrato
   const [rect, setRect] = useState<Rect | null>(null);
-  const [rawMeasure, setRawMeasure] = useState("mai chiamato"); // DEBUG: valori grezzi restituiti da measureInWindow, anche se non validi
+  // DEBUG: tre modi diversi di misurare la STESSA vista, per capire se il
+  // problema e' specifico di measureInWindow o e' piu' a monte (vista mai
+  // "attaccata" alla finestra, nodo senza dimensioni, ecc).
+  const [debugInfo, setDebugInfo] = useState({
+    nodeStatus: "mai controllato",
+    viaMeasureInWindow: "mai chiamato",
+    viaMeasure: "mai chiamato",
+    viaUIManager: "mai chiamato",
+    attempts: 0,
+  });
   const targetsRef = useRef(new Map<TutorialStepId, RefObject<View>>());
   const pathname = usePathname();
   const { height: windowHeight } = useWindowDimensions();
@@ -228,40 +248,73 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     function measure() {
       const ref = targetsRef.current.get(currentStep!.id);
       const node = ref?.current;
+      setDebugInfo((prev) => ({ ...prev, attempts: prev.attempts + 1 }));
+
       if (!node) {
-        setRawMeasure("nodo assente");
+        setDebugInfo((prev) => ({ ...prev, nodeStatus: "nodo assente" }));
         return;
       }
-      if (!node.measureInWindow) {
-        setRawMeasure("measureInWindow assente sul nodo");
-        return;
-      }
-      node.measureInWindow((x, y, width, height) => {
-        if (cancelled) return;
-        // DEBUG: valori grezzi, PRIMA di qualunque controllo di validita'.
-        setRawMeasure(`x=${x} y=${y} w=${width} h=${height}`);
-        // measureInWindow puo' restituire NaN (non zero: proprio NaN) su
-        // Android quando la vista non e' ancora "attaccata" alla finestra
-        // (es. subito dopo un remount/Fast Refresh) — un controllo tipo
-        // "width <= 0" NON lo scarta: qualsiasi confronto numerico con NaN
-        // e' sempre false, quindi "NaN <= 0" vale false e il valore
-        // passerebbe indisturbato, finendo in uno stile nativo e mandando
-        // in crash il render ("<<NaN>>" non e' un argomento valido).
-        // Number.isFinite e' l'unico controllo che lo rileva davvero.
-        if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
-        setRect((prev) => {
-          if (
-            prev &&
-            Math.abs(prev.x - x) < MOVE_THRESHOLD &&
-            Math.abs(prev.y - y) < MOVE_THRESHOLD &&
-            Math.abs(prev.width - width) < MOVE_THRESHOLD &&
-            Math.abs(prev.height - height) < MOVE_THRESHOLD
-          ) {
-            return prev;
-          }
-          return { x, y, width, height };
+      setDebugInfo((prev) => ({ ...prev, nodeStatus: "presente" }));
+
+      // Metodo 1 (quello gia' in uso): measureInWindow sull'istanza.
+      if (node.measureInWindow) {
+        node.measureInWindow((x, y, width, height) => {
+          if (cancelled) return;
+          setDebugInfo((prev) => ({ ...prev, viaMeasureInWindow: `x=${x} y=${y} w=${width} h=${height}` }));
+          // measureInWindow puo' restituire NaN (non zero: proprio NaN) su
+          // Android quando la vista non e' ancora "attaccata" alla finestra
+          // — un controllo tipo "width <= 0" NON lo scarta: qualsiasi
+          // confronto numerico con NaN e' sempre false, quindi il valore
+          // passerebbe indisturbato. Number.isFinite e' l'unico controllo
+          // che lo rileva davvero.
+          if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+          setRect((prevRect) => {
+            if (
+              prevRect &&
+              Math.abs(prevRect.x - x) < MOVE_THRESHOLD &&
+              Math.abs(prevRect.y - y) < MOVE_THRESHOLD &&
+              Math.abs(prevRect.width - width) < MOVE_THRESHOLD &&
+              Math.abs(prevRect.height - height) < MOVE_THRESHOLD
+            ) {
+              return prevRect;
+            }
+            return { x, y, width, height };
+          });
         });
-      });
+      } else {
+        setDebugInfo((prev) => ({ ...prev, viaMeasureInWindow: "metodo assente sul nodo" }));
+      }
+
+      // Metodo 2: measure() sull'istanza — API piu' vecchia, restituisce
+      // anche pageX/pageY (posizione assoluta calcolata diversamente
+      // internamente da measureInWindow).
+      if (node.measure) {
+        node.measure((x, y, width, height, pageX, pageY) => {
+          if (cancelled) return;
+          setDebugInfo((prev) => ({
+            ...prev,
+            viaMeasure: `w=${width} h=${height} pageX=${pageX} pageY=${pageY}`,
+          }));
+        });
+      } else {
+        setDebugInfo((prev) => ({ ...prev, viaMeasure: "metodo assente sul nodo" }));
+      }
+
+      // Metodo 3: UIManager diretto (bypassa il metodo di istanza,
+      // chiamando la stessa API nativa per un'altra via).
+      try {
+        const tag = findNodeHandle(node);
+        if (tag == null) {
+          setDebugInfo((prev) => ({ ...prev, viaUIManager: "findNodeHandle ha dato null" }));
+        } else {
+          UIManager.measureInWindow(tag, (x: number, y: number, width: number, height: number) => {
+            if (cancelled) return;
+            setDebugInfo((prev) => ({ ...prev, viaUIManager: `x=${x} y=${y} w=${width} h=${height}` }));
+          });
+        }
+      } catch (e) {
+        setDebugInfo((prev) => ({ ...prev, viaUIManager: `eccezione: ${String(e)}` }));
+      }
     }
 
     measure();
@@ -321,8 +374,12 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
           tutorial: step={stepIndex === null ? "caricamento" : stepIndex} ({currentStep?.id ?? "nessuno"}) rect=
           {rect ? "trovato" : "no"} path={pathname}
           {"\n"}bersagli registrati: {targetsRef.current.size === 0 ? "(nessuno)" : [...targetsRef.current.keys()].join(", ")}
-          {"\n"}nodo attivo: {currentStep ? (targetsRef.current.get(currentStep.id)?.current ? "presente" : "MANCANTE") : "-"}
-          {"\n"}misura grezza: {rawMeasure}
+          {"\n"}nodo: {debugInfo.nodeStatus} (tentativi: {debugInfo.attempts})
+          {"\n"}1) measureInWindow: {debugInfo.viaMeasureInWindow}
+          {"\n"}2) measure: {debugInfo.viaMeasure}
+          {"\n"}3) UIManager: {debugInfo.viaUIManager}
+          {"\n"}ambiente: {Platform.OS} {Platform.Version} · finestra {Math.round(Dimensions.get("window").width)}x
+          {Math.round(Dimensions.get("window").height)}
         </Text>
       </View>
       {/*
