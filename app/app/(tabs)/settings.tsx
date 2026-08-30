@@ -10,7 +10,11 @@ import { TutorialDim, TutorialTarget, useRestartTutorial } from "../../lib/tutor
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
 
-/** La modalita' debug e' pensata per lo sviluppo, non per gli utenti finali: resta nascosta a meno che il nome inserito non sia proprio questo. */
+/**
+ * La modalita' debug e' pensata per lo sviluppo, non per gli utenti finali: resta nascosta a meno che il nome inserito non sia proprio questo.
+ * TODO(pre-pubblicazione): rimuovere del tutto la riga "Modalita' debug" (sotto, condizionale su showDebugRow)
+ * e il link "Rivedi il tutorial" (in fondo alla schermata) prima di pubblicare sullo store.
+ */
 const DEBUG_UNLOCK_NAME = "renato palumbo";
 
 export default function SettingsScreen() {
