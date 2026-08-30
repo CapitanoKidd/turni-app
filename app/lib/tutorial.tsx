@@ -1,4 +1,4 @@
-import { usePathname } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { useEffect, type PropsWithChildren, type ReactNode } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { CopilotProvider, CopilotStep, useCopilot, walkthroughable, type TooltipProps } from "react-native-copilot";
@@ -86,6 +86,22 @@ export function useAdvanceWhenUsernameFilled(hasUsername: boolean): void {
     if (currentStep?.name === "username-input" && hasUsername) goToNext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasUsername, currentStep?.name]);
+}
+
+/**
+ * Da chiamare da un pulsante "Rivedi il tutorial" (es. in Impostazioni):
+ * dimentica il completamento, torna alla Home (punto di partenza naturale
+ * del tour) e lo fa ripartire — senza dover disinstallare l'app o forzarne
+ * la chiusura per rivederlo.
+ */
+export function useRestartTutorial(): () => void {
+  const { start } = useCopilot();
+  return () => {
+    storage.setTutorialCompleted(false).then(() => {
+      router.push("/(tabs)");
+      setTimeout(() => start(), 500);
+    });
+  };
 }
 
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {

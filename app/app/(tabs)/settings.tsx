@@ -6,7 +6,7 @@ import { AlarmPicker } from "../../components/AlarmPicker";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { CopilotStep, useAdvanceWhenUsernameFilled, WalkthroughableView } from "../../lib/tutorial";
+import { CopilotStep, useAdvanceWhenUsernameFilled, useRestartTutorial, WalkthroughableView } from "../../lib/tutorial";
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
 
@@ -104,6 +104,7 @@ export default function SettingsScreen() {
   const editingShift = shiftTypes.find((s) => s.id === alarmShiftId);
 
   useAdvanceWhenUsernameFilled(Boolean(settings.userName.trim()));
+  const restartTutorial = useRestartTutorial();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -210,6 +211,10 @@ export default function SettingsScreen() {
         </WalkthroughableView>
       </CopilotStep>
 
+      <TouchableOpacity onPress={restartTutorial}>
+        <Text style={styles.replayTutorialLink}>Rivedi il tutorial</Text>
+      </TouchableOpacity>
+
       <Text style={styles.privacyNote}>
         I file caricati per l'analisi non vengono mai salvati: vengono eliminati subito dopo la lettura dei turni.
       </Text>
@@ -303,6 +308,7 @@ const styles = StyleSheet.create({
   shiftLabel: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
   shiftTime: { color: theme.colors.textMuted, fontSize: 12 },
   privacyNote: { color: theme.colors.textMuted, fontSize: 12, textAlign: "center" },
+  replayTutorialLink: { color: theme.colors.primary, fontSize: 13, fontWeight: "600", textAlign: "center" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: theme.spacing.lg },
   modalCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: theme.spacing.lg, gap: theme.spacing.md },
   modalTitle: { color: theme.colors.text, fontSize: 17, fontWeight: "700" },
