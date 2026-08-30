@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
   },
   dimmed: {
-    opacity: 0.35,
+    opacity: 0.12,
   },
   blocker: {
     position: "absolute",
