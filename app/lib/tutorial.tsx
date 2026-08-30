@@ -107,7 +107,12 @@ export function useRestartTutorial(): () => void {
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   return (
     <CopilotProvider
-      overlay="svg"
+      // "view" invece di "svg": stesso effetto (oscura tutto tranne
+      // l'elemento evidenziato), ma disegnato con semplici View invece che
+      // con react-native-svg — quella libreria ha codice nativo e
+      // richiederebbe una ricompilazione dell'app (non basta ricaricare il
+      // JS). "view" funziona con solo JavaScript.
+      overlay="view"
       animated
       stopOnOutsideClick={false}
       backdropColor="rgba(4,8,16,0.82)"
