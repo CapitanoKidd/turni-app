@@ -182,7 +182,15 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
       const node = ref?.current;
       if (!node?.measureInWindow) return;
       node.measureInWindow((x, y, width, height) => {
-        if (cancelled || width <= 0 || height <= 0) return;
+        // measureInWindow puo' restituire NaN (non zero: proprio NaN) su
+        // Android quando la vista non e' ancora "attaccata" alla finestra
+        // (es. subito dopo un remount/Fast Refresh) — un controllo tipo
+        // "width <= 0" NON lo scarta: qualsiasi confronto numerico con NaN
+        // e' sempre false, quindi "NaN <= 0" vale false e il valore
+        // passerebbe indisturbato, finendo in uno stile nativo e mandando
+        // in crash il render ("<<NaN>>" non e' un argomento valido).
+        // Number.isFinite e' l'unico controllo che lo rileva davvero.
+        if (cancelled || ![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
         setRect((prev) => {
           if (
             prev &&
