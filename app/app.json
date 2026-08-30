@@ -25,10 +25,11 @@
         "backgroundColor": "#0F172A"
       },
       "permissions": [
-        "CAMERA",
-        "POST_NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
-        "RECEIVE_BOOT_COMPLETED"
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -52,7 +53,10 @@
       "router": {
         "origin": false
       },
-      "apiBaseUrl": "https://turni-app-5oxl.onrender.com"
+      "apiBaseUrl": "https://turni-app-5oxl.onrender.com",
+      "eas": {
+        "projectId": "ab7faa7d-efdb-4ecc-b6a5-95c843549fa9"
+      }
     }
   }
 }
