@@ -35,15 +35,29 @@ export const WalkthroughableView = walkthroughable(View);
 
 /**
  * Per gli step il cui pulsante "Avanti" deve anche portare su un'altra
- * schermata (icone dei tab, o il tasto "+ Nuovo" che apre l'editor del
- * turno): la navigazione avviene qui, PRIMA di passare allo step
- * successivo, cosi' il suo target fa in tempo a montarsi.
+ * schermata (le icone dei tab): la navigazione avviene qui, PRIMA di passare
+ * allo step successivo.
+ *
+ * Il passaggio allo step successivo pero' NON e' immediato (vedi
+ * "ADVANCE_DELAY_MS" sotto): la schermata di destinazione si monta solo alla
+ * prima visita (comportamento di default di react-navigation — di proposito
+ * NON forzato con "lazy: false" su tutte le schermate insieme, perche' cosi'
+ * facendo le schermate ancora non visitate restano montate ma nascoste, e
+ * misurarne un elemento nascosto restituisce misure inattendibili: e'
+ * esattamente il problema che si e' presentato provando quella strada), e il
+ * suo CopilotStep si "registra" solo a montaggio avvenuto. Passare allo step
+ * successivo troppo presto (nello stesso istante della navigazione) lo
+ * troverebbe non ancora registrato, e il tour salterebbe dritto allo step
+ * dopo ancora, senza spiegare nulla di quella schermata.
  */
 const NAVIGATE_ON_ADVANCE: Partial<Record<string, string>> = {
   "tab-settings": "/settings",
   "tab-calendar": "/calendar",
   "tab-home": "/(tabs)",
 };
+
+/** Tempo dato a una schermata appena navigata di montarsi e registrare il suo step, prima di avanzare. */
+const ADVANCE_DELAY_MS = 250;
 
 /**
  * Il fumetto NON segue piu' la posizione dell'elemento evidenziato: e' fisso
@@ -73,6 +87,14 @@ function AppTooltip({ labels }: TooltipProps) {
   const { currentStep, goToNext, isLastStep, stop } = useCopilot();
   const [highlightRect, setHighlightRect] = useState<LayoutRectangle | null>(null);
 
+  // "goToNext" cambia identita' ogni volta che uno step si registra (vedi lo
+  // stesso motivo spiegato su "startRef" in TutorialController): quando lo
+  // richiamiamo con un ritardo (sotto), leggerlo da un ref invece che dalla
+  // variabile catturata alla pressione del bottone assicura che si usi la
+  // versione più recente, con lo step appena registrato già nella lista.
+  const goToNextRef = useRef(goToNext);
+  goToNextRef.current = goToNext;
+
   useEffect(() => {
     let cancelled = false;
     setHighlightRect(null);
@@ -94,8 +116,14 @@ function AppTooltip({ labels }: TooltipProps) {
       return;
     }
     const target = NAVIGATE_ON_ADVANCE[currentStep!.name];
-    if (target) router.push(target);
-    goToNext();
+    if (target) {
+      router.push(target);
+      // Da' tempo alla schermata di destinazione di montarsi e registrare il
+      // suo step (vedi il commento su NAVIGATE_ON_ADVANCE) prima di avanzare.
+      setTimeout(() => goToNextRef.current(), ADVANCE_DELAY_MS);
+    } else {
+      goToNext();
+    }
   }
 
   return (
