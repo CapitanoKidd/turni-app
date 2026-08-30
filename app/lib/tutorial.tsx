@@ -298,6 +298,20 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     <TutorialContext.Provider value={contextValue}>
       {children}
       {/*
+        Etichetta diagnostica TEMPORANEA (da togliere una volta capito
+        perche' l'overlay non compariva mai): mostra lo stato interno vero,
+        sempre, indipendentemente dal resto — cosi' la prossima prova dice
+        con certezza SE il problema e' "lo step non parte mai" o "lo step
+        parte ma l'overlay non si vede", invece di doverlo indovinare da
+        "non succede nulla".
+      */}
+      <View pointerEvents="none" style={styles.debugBadge}>
+        <Text style={styles.debugBadgeText}>
+          tutorial: step={stepIndex === null ? "caricamento" : stepIndex} ({currentStep?.id ?? "nessuno"}) rect=
+          {rect ? "trovato" : "no"} path={pathname}
+        </Text>
+      </View>
+      {/*
         Si mostra solo quando il target dello step attivo e' stato davvero
         misurato ("rect" non nullo). Con step che vivono su schermate
         diverse (es. "add-shift-button" su Impostazioni ma il passo
@@ -355,7 +369,7 @@ function TutorialOverlay({
   const tooltipBelow = spaceBelow > 180;
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]} pointerEvents="box-none">
+    <Animated.View style={[StyleSheet.absoluteFill, styles.overlayRoot, { opacity: fade }]} pointerEvents="box-none">
       <View style={[styles.mask, { top: 0, left: 0, right: 0, height: hole.y }]} />
       <View style={[styles.mask, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]} />
       <View style={[styles.mask, { top: hole.y, left: 0, width: hole.x, height: hole.height }]} />
@@ -392,6 +406,21 @@ function TutorialOverlay({
 }
 
 const styles = StyleSheet.create({
+  // TEMPORANEO: vedi commento sopra. zIndex/elevation alti apposta, per
+  // escludere anche l'ipotesi "qualcos'altro lo copre".
+  debugBadge: {
+    position: "absolute",
+    top: 40,
+    left: 8,
+    right: 8,
+    zIndex: 9999,
+    elevation: 9999,
+    backgroundColor: "#ff00ff",
+    padding: 6,
+    borderRadius: 6,
+  },
+  debugBadgeText: { color: "#000", fontSize: 11, fontWeight: "700" },
+  overlayRoot: { zIndex: 9998, elevation: 9998 },
   mask: { position: "absolute", backgroundColor: "rgba(4,8,16,0.82)" },
   holeBorder: {
     position: "absolute",
