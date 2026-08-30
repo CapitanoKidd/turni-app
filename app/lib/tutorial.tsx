@@ -1,4 +1,4 @@
-import { usePathname } from "expo-router";
+import { router, usePathname } from "expo-router";
 import {
   createContext,
   useContext,
@@ -28,9 +28,12 @@ import { theme } from "./theme";
 export type TutorialStepId =
   | "tab-settings"
   | "username-input"
-  | "manage-shifts"
+  | "add-shift-button"
+  | "shift-alarm"
   | "tab-calendar"
-  | "calendar-overview";
+  | "calendar-overview"
+  | "tab-home"
+  | "upload-button";
 
 interface StepDef {
   id: TutorialStepId;
@@ -51,12 +54,23 @@ const STEPS: StepDef[] = [
   },
   {
     id: "username-input",
-    text: "Inserisci il tuo nome: serve per riconoscere la tua riga nei documenti che carichi.",
+    text: "Qui puoi inserire il nome presente nel turno.",
     advance: "condition",
   },
   {
-    id: "manage-shifts",
-    text: "Qui crei i tuoi turni (es. Mattina, Pomeriggio, Notte, Riposo). Su ognuno puoi impostare anche una sveglia dedicata toccando l'icona della sveglia sulla riga del turno.",
+    id: "add-shift-button",
+    text: "Qui puoi aggiungere un turno e indicarne la fascia oraria. Ad esempio: Mattina 7:00-14:00.",
+    advance: "route",
+    routeMatch: "/shift-type-editor",
+  },
+  {
+    // Il target di questo step vive di nuovo su Impostazioni (l'icona
+    // sveglia del turno appena creato): finche' l'utente e' sull'editor a
+    // compilare il modulo, il suo target non esiste ancora da nessuna
+    // parte, quindi l'overlay resta nascosto e non intralcia — riappare da
+    // solo appena si torna indietro con un turno creato.
+    id: "shift-alarm",
+    text: "Qui puoi decidere se impostare la sveglia automatica per questo tipo di turno, oppure lasciarlo disattivato: non e' obbligatorio.",
     advance: "button",
     buttonLabel: "Avanti",
   },
@@ -68,7 +82,19 @@ const STEPS: StepDef[] = [
   },
   {
     id: "calendar-overview",
-    text: "Qui vedi e modifichi i turni assegnati: tocca un giorno per impostarlo, come riposo, ferie o un turno di lavoro.",
+    text: "Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno.",
+    advance: "button",
+    buttonLabel: "Avanti",
+  },
+  {
+    id: "tab-home",
+    text: "Torniamo alla Home.",
+    advance: "route",
+    routeMatch: "/",
+  },
+  {
+    id: "upload-button",
+    text: "Da qui carichi il tuo primo documento o la foto della griglia turni.",
     advance: "button",
     buttonLabel: "Ho capito, inizia!",
     isLast: true,
@@ -127,7 +153,7 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   const [rect, setRect] = useState<Rect | null>(null);
   const targetsRef = useRef(new Map<TutorialStepId, RefObject<View>>());
   const pathname = usePathname();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight } = useWindowDimensions();
 
   useEffect(() => {
     storage.getTutorialCompleted().then((done) => setStepIndex(done ? -1 : 0));
@@ -154,6 +180,12 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   }
 
   function restart() {
+    // Il primo step si aspetta di partire dalla Home (mostra "tocca
+    // Impostazioni"): se si restasse sulla schermata da cui si preme
+    // "Rivedi il tutorial" (Impostazioni), lo step scatterebbe subito
+    // avanti da solo, perche' la route e' gia' quella giusta, e l'utente
+    // non lo vedrebbe mai.
+    router.push("/(tabs)");
     setRect(null);
     setStepIndex(0);
   }
@@ -171,10 +203,13 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   // solo se la posizione e' cambiata davvero, per non causare un ridisegno
   // continuo (e un leggero tremolio) ogni 300ms a riposo.
   useEffect(() => {
-    if (!currentStep) {
-      setRect(null);
-      return;
-    }
+    // Azzera subito, non solo quando il tour finisce: senza questo, appena
+    // uno step cambia schermata (es. da Impostazioni all'editor del turno),
+    // per un attimo restava visibile il vecchio riquadro evidenziato — nel
+    // posto sbagliato, sopra una schermata che non c'entra — finche' la
+    // prima misurazione del nuovo target non arrivava.
+    setRect(null);
+    if (!currentStep) return;
     let cancelled = false;
 
     function measure() {
@@ -232,12 +267,23 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   return (
     <TutorialContext.Provider value={contextValue}>
       {children}
-      {running ? (
+      {/*
+        Si mostra solo quando il target dello step attivo e' stato davvero
+        misurato ("rect" non nullo). Con step che vivono su schermate
+        diverse (es. "add-shift-button" su Impostazioni ma il passo
+        successivo, "shift-alarm", ha il suo target di nuovo su
+        Impostazioni dopo essere passati dall'editor del turno) il target
+        a volte non esiste affatto sulla schermata corrente: niente da
+        evidenziare, quindi niente overlay — l'utente resta libero di
+        usare la schermata (es. compilare il modulo del nuovo turno) senza
+        che nulla lo blocchi. Riappare da solo appena si torna su una
+        schermata dove il target dello step attivo esiste.
+      */}
+      {running && rect ? (
         <TutorialOverlay
           key={currentStep!.id}
           step={currentStep!}
           rect={rect}
-          windowWidth={windowWidth}
           windowHeight={windowHeight}
           onAdvanceButton={currentStep!.isLast ? finish : goNext}
           onSkip={finish}
@@ -250,14 +296,12 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
 function TutorialOverlay({
   step,
   rect,
-  windowWidth,
   windowHeight,
   onAdvanceButton,
   onSkip,
 }: {
   step: StepDef;
-  rect: Rect | null;
-  windowWidth: number;
+  rect: Rect;
   windowHeight: number;
   onAdvanceButton: () => void;
   onSkip: () => void;
@@ -270,52 +314,41 @@ function TutorialOverlay({
     Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   }, [fade, step.id]);
 
-  const hole = rect
-    ? {
-        x: Math.max(0, rect.x - HOLE_PADDING),
-        y: Math.max(0, rect.y - HOLE_PADDING),
-        width: rect.width + HOLE_PADDING * 2,
-        height: rect.height + HOLE_PADDING * 2,
-      }
-    : null;
+  const hole = {
+    x: Math.max(0, rect.x - HOLE_PADDING),
+    y: Math.max(0, rect.y - HOLE_PADDING),
+    width: rect.width + HOLE_PADDING * 2,
+    height: rect.height + HOLE_PADDING * 2,
+  };
 
-  const spaceBelow = hole ? windowHeight - (hole.y + hole.height) : 0;
-  const tooltipBelow = !hole || spaceBelow > 180;
+  const spaceBelow = windowHeight - (hole.y + hole.height);
+  const tooltipBelow = spaceBelow > 180;
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]} pointerEvents="box-none">
-      {hole ? (
-        <>
-          <View style={[styles.mask, { top: 0, left: 0, right: 0, height: hole.y }]} />
-          <View style={[styles.mask, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]} />
-          <View style={[styles.mask, { top: hole.y, left: 0, width: hole.x, height: hole.height }]} />
-          <View
-            style={[
-              styles.mask,
-              { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height },
-            ]}
-          />
-          <View
-            pointerEvents="none"
-            style={[styles.holeBorder, { top: hole.y, left: hole.x, width: hole.width, height: hole.height }]}
-          />
-        </>
-      ) : (
-        <View style={[styles.mask, StyleSheet.absoluteFillObject]} />
-      )}
+      <View style={[styles.mask, { top: 0, left: 0, right: 0, height: hole.y }]} />
+      <View style={[styles.mask, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]} />
+      <View style={[styles.mask, { top: hole.y, left: 0, width: hole.x, height: hole.height }]} />
+      <View
+        style={[styles.mask, { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height }]}
+      />
+      <View
+        pointerEvents="none"
+        style={[styles.holeBorder, { top: hole.y, left: hole.x, width: hole.width, height: hole.height }]}
+      />
 
       <View
         style={[
           styles.tooltip,
           tooltipBelow
-            ? { top: (hole ? hole.y + hole.height : windowHeight / 2 - 60) + 12 }
-            : { bottom: windowHeight - (hole?.y ?? windowHeight / 2) + 12 },
+            ? { top: hole.y + hole.height + 12 }
+            : { bottom: windowHeight - hole.y + 12 },
         ]}
       >
         <Text style={styles.tooltipText}>{step.text}</Text>
         <View style={styles.tooltipActions}>
           <TouchableOpacity onPress={onSkip} hitSlop={8}>
-            <Text style={styles.skipText}>Salta</Text>
+            <Text style={styles.skipText}>Salta tutorial</Text>
           </TouchableOpacity>
           {step.advance === "button" ? (
             <TouchableOpacity style={styles.nextButton} onPress={onAdvanceButton}>

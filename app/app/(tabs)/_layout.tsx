@@ -5,7 +5,13 @@ import { theme } from "../../lib/theme";
 import { useTutorialTarget } from "../../lib/tutorial";
 
 /** Avvolge l'icona di un tab in un target del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
-function TutorialTabIcon({ id, children }: { id: "tab-settings" | "tab-calendar"; children: React.ReactNode }) {
+function TutorialTabIcon({
+  id,
+  children,
+}: {
+  id: "tab-settings" | "tab-calendar" | "tab-home";
+  children: React.ReactNode;
+}) {
   const ref = useTutorialTarget(id);
   return <View ref={ref}>{children}</View>;
 }
@@ -26,7 +32,11 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <TutorialTabIcon id="tab-home">
+              <Ionicons name="home" size={size} color={color} />
+            </TutorialTabIcon>
+          ),
         }}
       />
       <Tabs.Screen

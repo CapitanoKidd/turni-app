@@ -8,6 +8,7 @@ import { analyzeShiftFile, type PickedFile } from "../../lib/api";
 import { setDebugImages } from "../../lib/debugImageStore";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
+import { useTutorialTarget } from "../../lib/tutorial";
 import type { AnalyzeResponse, ShiftType } from "../../lib/types";
 
 /** Caricamenti (foto/PDF/Word) concessi per giorno a un dispositivo: protezione contro l'uso eccessivo dell'analisi, non contro l'abuso deliberato (vedi storage.consumeDailyUpload). */
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [pendingFile, setPendingFile] = useState<PickedFile | null>(null);
   const [candidateNames, setCandidateNames] = useState<string[]>([]);
+  const uploadButtonTarget = useTutorialTarget("upload-button");
 
   useFocusEffect(
     useCallback(() => {
@@ -175,7 +177,9 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <UploadButton loading={loading} onFilePicked={handleFilePicked} />
+      <View ref={uploadButtonTarget}>
+        <UploadButton loading={loading} onFilePicked={handleFilePicked} />
+      </View>
 
       <View style={styles.stepsCard}>
         <Step number={1} text="Carica la foto, il PDF o il Word della griglia turni" />

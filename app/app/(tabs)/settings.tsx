@@ -105,7 +105,8 @@ export default function SettingsScreen() {
 
   useTutorialCondition("username-input", Boolean(settings.userName.trim()));
   const usernameTarget = useTutorialTarget("username-input");
-  const manageShiftsTarget = useTutorialTarget("manage-shifts");
+  const addShiftTarget = useTutorialTarget("add-shift-button");
+  const shiftAlarmTarget = useTutorialTarget("shift-alarm");
   const restartTutorial = useRestartTutorial();
 
   return (
@@ -158,18 +159,20 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
-      <View style={styles.section} ref={manageShiftsTarget}>
+      <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Gestisci turni</Text>
-          <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
-            <Text style={styles.addLink}>+ Nuovo</Text>
-          </TouchableOpacity>
+          <View ref={addShiftTarget}>
+            <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
+              <Text style={styles.addLink}>+ Nuovo</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {shiftTypes.length === 0 ? (
           <Text style={styles.emptyText}>Nessun turno definito. I turni vengono creati anche automaticamente quando importi la griglia dalla Home.</Text>
         ) : (
-          shiftTypes.map((shift) => (
+          shiftTypes.map((shift, index) => (
             <View key={shift.id} style={styles.shiftRow}>
               <TouchableOpacity
                 style={styles.shiftRowMain}
@@ -188,13 +191,17 @@ export default function SettingsScreen() {
                 </View>
               </TouchableOpacity>
               {!isDayOff(shift) ? (
-                <TouchableOpacity style={styles.alarmIconButton} onPress={() => openAlarmEditor(shift)}>
-                  <Ionicons
-                    name={shift.alarmEnabled ? "alarm" : "alarm-outline"}
-                    size={22}
-                    color={shift.alarmEnabled ? theme.colors.primary : theme.colors.textMuted}
-                  />
-                </TouchableOpacity>
+                // Il primo turno della lista e' il target dello step "shift-alarm" del
+                // tutorial guidato: nell'onboarding e' quello appena creato.
+                <View ref={index === 0 ? shiftAlarmTarget : undefined}>
+                  <TouchableOpacity style={styles.alarmIconButton} onPress={() => openAlarmEditor(shift)}>
+                    <Ionicons
+                      name={shift.alarmEnabled ? "alarm" : "alarm-outline"}
+                      size={22}
+                      color={shift.alarmEnabled ? theme.colors.primary : theme.colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                </View>
               ) : null}
             </View>
           ))
