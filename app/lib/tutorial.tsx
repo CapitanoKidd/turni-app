@@ -1,285 +1,221 @@
 import { router } from "expo-router";
-import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from "react";
-import { LayoutRectangle, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { CopilotProvider, CopilotStep, useCopilot, walkthroughable, type TooltipProps } from "react-native-copilot";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { storage } from "./storage";
 import { theme } from "./theme";
 
-/** Spazio in piu' tra il bordo evidenziato e l'elemento vero e proprio. */
-const HIGHLIGHT_PADDING = 8;
-
 /**
- * Tutorial guidato alla prima apertura, con react-native-copilot.
+ * Tutorial guidato alla prima apertura — implementazione fatta in casa,
+ * DELIBERATAMENTE senza alcuna misurazione nativa della posizione degli
+ * elementi (measure/measureInWindow e affini).
  *
- * Si avanza SEMPRE col pulsante "Avanti" nel fumetto, mai aspettando che
- * l'utente tocchi davvero l'elemento evidenziato sotto: e' cosi' che
- * funzionano tutti i tour guidati (anche quando sembra che ti stiano
- * facendo toccare il bottone vero, in realta' e' il tour a farsi da parte
- * dopo il tuo "Avanti", e sei tu a toccarlo per conto tuo, senza che il
- * tour se ne accorga). Il vantaggio, oltre a essere lo standard: non serve
- * piu' che un tocco raggiunga davvero l'elemento sotto l'overlay — quindi
- * il fatto che react-native-copilot disegni l'overlay dentro un Modal
- * nativo (che blocca i tocchi verso il resto dell'app) smette di essere un
- * problema, ed era l'unico motivo per cui l'avevamo scartata la prima
- * volta. La posizione del riquadro evidenziato la calcola la libreria
- * stessa, che sul dispositivo di prova ha sempre funzionato (a differenza
- * del codice scritto a mano in questo file in precedenza).
+ * Perche': il tentativo precedente (react-native-copilot) calcola dove
+ * disegnare l'evidenziazione misurando la posizione reale dell'elemento
+ * con measure(). Su dispositivo reale quella misura si e' rivelata
+ * sbagliata in modo SISTEMATICO per elementi dentro una ScrollView
+ * (Impostazioni, Calendario) — non un problema di tempistica: provati sia
+ * un ritardo dopo la navigazione sia il montaggio anticipato di tutte le
+ * schermate, nessuno dei due ha cambiato il risultato di un solo pixel.
+ * Ed e' lo stesso problema di fondo gia' incontrato con l'implementazione
+ * custom originale di questo file (measureInWindow inattendibile sullo
+ * stesso device) — la libreria usa la stessa famiglia di API sotto il
+ * cofano, quindi eredita lo stesso limite.
  *
- * overlay="view" invece di "svg": stesso effetto visivo, ma senza toccare
- * react-native-svg (codice nativo, causava un crash — vedi commit
- * precedenti). react-native-svg resta installato solo come dipendenza
- * transitiva della libreria, mai davvero usato.
+ * Soluzione: l'evidenziazione non e' piu' un overlay disegnato "sopra"
+ * l'elemento con coordinate calcolate da fuori. Ogni elemento si evidenzia
+ * DA SOLO — la schermata che lo contiene confronta il proprio nome con lo
+ * step attuale (questo stesso contesto) e si applica un bordo colorato con
+ * il normale stile React Native. Zero coordinate, zero chiamate native:
+ * la posizione la decide lo stesso motore di layout che disegna
+ * l'elemento, non un calcolo separato che puo' disallinearsi da esso.
+ *
+ * Il fumetto con testo e pulsanti resta fisso in basso, come prima. Si
+ * avanza SEMPRE col pulsante "Avanti", mai legato a un tocco reale
+ * sull'elemento sottostante — un livello trasparente sopra tutto il resto
+ * dell'app blocca i tocchi altrove, cosi' il tour non puo' disallinearsi
+ * da dove l'utente si trova davvero.
  */
 
-export const WalkthroughableView = walkthroughable(View);
-
-/**
- * Per gli step il cui pulsante "Avanti" deve anche portare su un'altra
- * schermata (le icone dei tab): la navigazione avviene qui, PRIMA di passare
- * allo step successivo.
- *
- * Il passaggio allo step successivo pero' NON e' immediato (vedi
- * "ADVANCE_DELAY_MS" sotto): la schermata di destinazione si monta solo alla
- * prima visita (comportamento di default di react-navigation — di proposito
- * NON forzato con "lazy: false" su tutte le schermate insieme, perche' cosi'
- * facendo le schermate ancora non visitate restano montate ma nascoste, e
- * misurarne un elemento nascosto restituisce misure inattendibili: e'
- * esattamente il problema che si e' presentato provando quella strada), e il
- * suo CopilotStep si "registra" solo a montaggio avvenuto. Passare allo step
- * successivo troppo presto (nello stesso istante della navigazione) lo
- * troverebbe non ancora registrato, e il tour salterebbe dritto allo step
- * dopo ancora, senza spiegare nulla di quella schermata.
- */
-const NAVIGATE_ON_ADVANCE: Partial<Record<string, string>> = {
-  "tab-settings": "/settings",
-  "tab-calendar": "/calendar",
-  "tab-home": "/(tabs)",
-};
-
-/** Tempo dato a una schermata appena navigata di montarsi e registrare il suo step, prima di avanzare. */
-const ADVANCE_DELAY_MS = 250;
-
-/**
- * Il fumetto NON segue piu' la posizione dell'elemento evidenziato: e' fisso
- * appena sopra la barra dei tab, sempre nello stesso punto dello schermo (vedi
- * "tooltipStyle" su CopilotProvider, che rende l'intero riquadro a schermo
- * intero cosi' le coordinate qui sotto sono gia' relative allo schermo).
- *
- * Motivo: la libreria calcola dove metterlo (sopra/sotto il target) misurando
- * la posizione dell'elemento UNA volta, quando lo step si attiva — se dopo
- * quel momento lo schermo scorre (una ScrollView lunga, es. tanti turni in
- * "Gestisci turni") o cambia altezza (la tastiera che si apre sul campo
- * nome), quella misura non e' piu' valida e il fumetto puo' apparire fuori
- * schermo, tagliato. Un punto fisso, sempre sopra la barra dei tab, elimina
- * il problema alla radice invece di rincorrere ogni singolo caso — e per lo
- * stesso motivo l'animazione di spostamento del riquadro evidenziato e'
- * disattivata (era comunque lenta e a scatti): il riquadro compare subito
- * dove serve, senza intermezzi da inseguire.
- *
- * Il ritaglio scuro intorno all'elemento (il "buco" nell'overlay) lo disegna
- * la libreria stessa, sempre un rettangolo netto: per farlo leggere di piu' e
- * con angoli arrotondati, sopra ci disegniamo una cornice colorata e
- * arrotondata, misurando lo stesso elemento con "currentStep.measure()" (la
- * stessa funzione, gia' affidabile su questo dispositivo, che la libreria usa
- * per il buco).
- */
-function AppTooltip({ labels }: TooltipProps) {
-  const { currentStep, goToNext, isLastStep, stop } = useCopilot();
-  const [highlightRect, setHighlightRect] = useState<LayoutRectangle | null>(null);
-
-  // "goToNext" cambia identita' ogni volta che uno step si registra (vedi lo
-  // stesso motivo spiegato su "startRef" in TutorialController): quando lo
-  // richiamiamo con un ritardo (sotto), leggerlo da un ref invece che dalla
-  // variabile catturata alla pressione del bottone assicura che si usi la
-  // versione più recente, con lo step appena registrato già nella lista.
-  const goToNextRef = useRef(goToNext);
-  goToNextRef.current = goToNext;
-
-  useEffect(() => {
-    let cancelled = false;
-    setHighlightRect(null);
-    if (currentStep) {
-      currentStep.measure().then((rect) => {
-        if (!cancelled) setHighlightRect(rect);
-      });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [currentStep]);
-
-  if (!currentStep) return null;
-
-  function handleAdvance() {
-    if (isLastStep) {
-      stop();
-      return;
-    }
-    const target = NAVIGATE_ON_ADVANCE[currentStep!.name];
-    if (target) {
-      router.push(target);
-      // Da' tempo alla schermata di destinazione di montarsi e registrare il
-      // suo step (vedi il commento su NAVIGATE_ON_ADVANCE) prima di avanzare.
-      setTimeout(() => goToNextRef.current(), ADVANCE_DELAY_MS);
-    } else {
-      goToNext();
-    }
-  }
-
-  return (
-    <View style={styles.fullscreenLayer} pointerEvents="box-none">
-      {highlightRect ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.highlightRing,
-            {
-              left: highlightRect.x - HIGHLIGHT_PADDING,
-              top: highlightRect.y - HIGHLIGHT_PADDING,
-              width: highlightRect.width + HIGHLIGHT_PADDING * 2,
-              height: highlightRect.height + HIGHLIGHT_PADDING * 2,
-            },
-          ]}
-        />
-      ) : null}
-      <View style={[styles.tooltip, styles.tooltipBubble]}>
-        <Text style={styles.tooltipText}>{currentStep.text}</Text>
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={() => stop()} hitSlop={8}>
-            <Text style={styles.skipText}>{labels.skip ?? "Salta tutorial"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.nextButton} onPress={handleAdvance}>
-            <Text style={styles.nextButtonText}>{isLastStep ? labels.finish : labels.next}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
+interface TutorialStep {
+  name: string;
+  text: string;
+  /** Route su cui navigare, PRIMA di passare allo step successivo, quando si avanza da questo step. */
+  navigateTo?: string;
 }
 
-/** Nessun elemento visivo: solo la logica che avvia il tour e salva il completamento. */
-function TutorialController() {
-  const { start, copilotEvents } = useCopilot();
-  // "start" cambia identita' ogni volta che uno step si registra/deregistra
-  // (cioe' a ogni navigazione, dato che i CopilotStep delle schermate che si
-  // smontano/montano vanno e vengono): tenerla in un ref evita che l'effetto
-  // sotto si ripeta e faccia ripartire il tour dal primo passo ogni volta
-  // che l'utente naviga con "Avanti".
-  const startRef = useRef(start);
-  startRef.current = start;
+const STEPS: TutorialStep[] = [
+  { name: "tab-settings", text: "Benvenuto! Inizia da qui: tocca Impostazioni.", navigateTo: "/settings" },
+  {
+    name: "username-input",
+    text: "Inserisci il tuo nome: ci servirà per riconoscere la tua riga nei documenti che carichi.",
+  },
+  {
+    name: "add-shift-button",
+    text: "Qui crei i tuoi turni (es. Mattina, Pomeriggio, Notte, Riposo). Su ognuno puoi impostare anche una sveglia dedicata toccando l'icona della sveglia sulla riga del turno.",
+  },
+  { name: "tab-calendar", text: "Ora vai al calendario.", navigateTo: "/calendar" },
+  {
+    name: "calendar-overview",
+    text: "Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno.",
+  },
+  { name: "tab-home", text: "Torniamo alla Home.", navigateTo: "/(tabs)" },
+  { name: "upload-button", text: "Da qui carichi il tuo primo documento o la foto della griglia turni." },
+];
+
+interface TutorialContextValue {
+  active: boolean;
+  currentStepName: string | null;
+  restart: () => void;
+}
+
+const TutorialContext = createContext<TutorialContextValue | null>(null);
+
+function useTutorialContext(): TutorialContextValue {
+  const ctx = useContext(TutorialContext);
+  if (!ctx) throw new Error("useTutorialContext va usato dentro TutorialProvider");
+  return ctx;
+}
+
+/** true se lo step indicato e' quello attivo in questo momento: usalo per evidenziare l'elemento corrispondente. */
+export function useTutorialHighlight(name: string): boolean {
+  const { active, currentStepName } = useTutorialContext();
+  return active && currentStepName === name;
+}
+
+/** Da chiamare da un pulsante "Rivedi il tutorial". */
+export function useRestartTutorial(): () => void {
+  const { restart } = useTutorialContext();
+  return restart;
+}
+
+/**
+ * Avvolge l'elemento da evidenziare durante lo step "name". Il bordo e'
+ * sempre presente (trasparente quando non e' il turno di questo step) cosi'
+ * comparire non sposta di qualche pixel il resto del layout intorno.
+ */
+export function TutorialTarget({
+  name,
+  style,
+  children,
+}: PropsWithChildren<{ name: string; style?: StyleProp<ViewStyle> }>) {
+  const highlighted = useTutorialHighlight(name);
+  return <View style={[style, highlighted ? styles.highlightOn : styles.highlightOff]}>{children}</View>;
+}
+
+export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [active, setActive] = useState(false);
   const hasAutoStarted = useRef(false);
 
   useEffect(() => {
     if (hasAutoStarted.current) return;
     hasAutoStarted.current = true;
     storage.getTutorialCompleted().then((done) => {
-      // Piccolo ritardo: al primo render il target del passo 1 (icona tab
-      // Impostazioni) potrebbe non essere ancora misurabile.
-      if (!done) setTimeout(() => startRef.current(), 400);
+      if (!done) setTimeout(() => setActive(true), 400);
     });
   }, []);
 
-  useEffect(() => {
-    const onStop = () => {
-      storage.setTutorialCompleted(true);
-    };
-    copilotEvents.on("stop", onStop);
-    return () => {
-      copilotEvents.off("stop", onStop);
-    };
-  }, [copilotEvents]);
+  const finish = useCallback(() => {
+    setActive(false);
+    storage.setTutorialCompleted(true);
+  }, []);
 
-  return null;
-}
-
-/**
- * Da chiamare da un pulsante "Rivedi il tutorial": torna alla Home (punto
- * di partenza naturale del tour) e lo fa ripartire dal primo step.
- */
-export function useRestartTutorial(): () => void {
-  const { start } = useCopilot();
-  return () => {
+  const restart = useCallback(() => {
     storage.setTutorialCompleted(false).then(() => {
       router.push("/(tabs)");
-      setTimeout(() => start(), 500);
+      setStepIndex(0);
+      setTimeout(() => setActive(true), 300);
     });
-  };
-}
+  }, []);
 
-export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
+  const currentStep = active ? STEPS[stepIndex] : null;
+  const isLast = stepIndex === STEPS.length - 1;
+
+  function handleAdvance() {
+    if (!currentStep) return;
+    if (isLast) {
+      finish();
+      return;
+    }
+    if (currentStep.navigateTo) router.push(currentStep.navigateTo);
+    setStepIndex((i) => i + 1);
+  }
+
+  const contextValue = useMemo<TutorialContextValue>(
+    () => ({ active, currentStepName: currentStep?.name ?? null, restart }),
+    [active, currentStep, restart],
+  );
+
   return (
-    <CopilotProvider
-      overlay="view"
-      animated={false}
-      animationDuration={0}
-      arrowSize={0}
-      stepNumberComponent={() => null}
-      stopOnOutsideClick={false}
-      backdropColor="rgba(4,8,16,0.82)"
-      tooltipStyle={styles.fullscreenLayer}
-      tooltipComponent={AppTooltip}
-      labels={{ skip: "Salta tutorial", previous: "Indietro", next: "Avanti", finish: "Ho capito, inizia!" }}
-    >
-      <TutorialController />
+    <TutorialContext.Provider value={contextValue}>
       {children}
-    </CopilotProvider>
+      {currentStep ? (
+        // Trasparente di proposito (niente sfondo scuro): un overlay scuro
+        // sopra tutto oscurerebbe anche l'elemento appena evidenziato,
+        // vanificando il bordo colorato. Serve solo a bloccare i tocchi
+        // altrove, non a "spegnere" visivamente il resto dello schermo.
+        <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={styles.blocker}>
+            <View style={styles.tooltip}>
+              <Text style={styles.tooltipText}>{currentStep.text}</Text>
+              <View style={styles.actions}>
+                <TouchableOpacity onPress={finish} hitSlop={8}>
+                  <Text style={styles.skipText}>Salta tutorial</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.nextButton} onPress={handleAdvance}>
+                  <Text style={styles.nextButtonText}>{isLast ? "Ho capito, inizia!" : "Avanti"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      ) : null}
+    </TutorialContext.Provider>
   );
 }
 
-export { CopilotStep };
+const HIGHLIGHT_BORDER_WIDTH = 3;
 
 const styles = StyleSheet.create({
-  // Sovrascrive il posizionamento che la libreria calcolerebbe in base al
-  // target (vedi il commento sopra AppTooltip): copre tutto lo schermo, senza
-  // offset, cosi' sia il fumetto sia la cornice evidenziata dentro
-  // AppTooltip possono posizionarsi con coordinate assolute relative allo
-  // schermo (altrimenti sarebbero relative al riquadro che la libreria
-  // stessa posizionerebbe in base al target — proprio quello che vogliamo
-  // evitare). "top/left/right/bottom/maxWidth" qui vincono su quelli che la
-  // libreria avrebbe impostato lei stessa in base alla misura del target,
-  // perche' un valore presente nell'ultimo oggetto di uno style array vince
-  // sempre su un valore per la stessa chiave nei precedenti.
-  fullscreenLayer: {
+  highlightOn: {
+    borderWidth: HIGHLIGHT_BORDER_WIDTH,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
+  },
+  highlightOff: {
+    borderWidth: HIGHLIGHT_BORDER_WIDTH,
+    borderColor: "transparent",
+    borderRadius: theme.radius.md,
+  },
+  blocker: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    maxWidth: undefined,
-    backgroundColor: "transparent",
-    // La libreria imposta di default "paddingTop"/"paddingHorizontal" (non
-    // "padding") e "overflow: hidden" sul riquadro che ospita il fumetto:
-    // essendo chiavi di stile diverse da "padding", non basta azzerare
-    // quest'ultima per eliminarle (in RN vincono comunque, sono piu'
-    // specifiche del semplice "padding"), altrimenti sposterebbero di
-    // qualche pixel tutto cio' che posizioniamo qui dentro con coordinate
-    // assolute. Vanno azzerate esplicitamente una per una.
-    padding: 0,
-    paddingTop: 0,
-    paddingHorizontal: 0,
-    borderRadius: 0,
-    overflow: "visible",
-  },
-  // Cornice colorata e arrotondata sopra il ritaglio scuro (che resta un
-  // rettangolo netto, disegnato dalla libreria): piu' visibile di un
-  // semplice buco nell'overlay, e piu' "precisa" nel far percepire i confini
-  // esatti dell'elemento — vedi il commento sopra AppTooltip per il motivo.
-  highlightRing: {
-    position: "absolute",
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: theme.colors.primary,
-    backgroundColor: "transparent",
-  },
-  // Il fumetto vero e proprio: sempre alla stessa distanza dal fondo dello
-  // schermo, con margini laterali fissi.
-  tooltipBubble: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 96,
+    justifyContent: "flex-end",
   },
   tooltip: {
+    margin: 16,
+    marginBottom: 96,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,

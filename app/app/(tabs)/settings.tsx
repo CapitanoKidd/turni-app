@@ -6,7 +6,7 @@ import { AlarmPicker } from "../../components/AlarmPicker";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { CopilotStep, WalkthroughableView, useRestartTutorial } from "../../lib/tutorial";
+import { TutorialTarget, useRestartTutorial } from "../../lib/tutorial";
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
 
@@ -107,44 +107,42 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <CopilotStep name="username-input" order={2} text="Inserisci il tuo nome: ci servirà per riconoscere la tua riga nei documenti che carichi.">
-        <WalkthroughableView style={styles.section}>
-          <Text style={styles.fieldLabel}>Nome utente</Text>
-          {editingName ? (
-            <>
-              <TextInput
-                style={styles.input}
-                value={nameDraft}
-                onChangeText={(value) => {
-                  setNameDraft(value);
-                  if (nameError) setNameError(null);
-                }}
-                placeholder="Il tuo nome"
-                placeholderTextColor={theme.colors.textMuted}
-                autoFocus={!settings.userName.trim()}
-              />
-              {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
-              <View style={styles.nameActions}>
-                {settings.userName.trim() ? (
-                  <TouchableOpacity style={styles.nameSecondaryButton} onPress={cancelEditingName}>
-                    <Text style={styles.nameSecondaryButtonText}>Annulla</Text>
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity style={styles.namePrimaryButton} onPress={saveName}>
-                  <Text style={styles.namePrimaryButtonText}>Salva</Text>
+      <TutorialTarget name="username-input" style={styles.section}>
+        <Text style={styles.fieldLabel}>Nome utente</Text>
+        {editingName ? (
+          <>
+            <TextInput
+              style={styles.input}
+              value={nameDraft}
+              onChangeText={(value) => {
+                setNameDraft(value);
+                if (nameError) setNameError(null);
+              }}
+              placeholder="Il tuo nome"
+              placeholderTextColor={theme.colors.textMuted}
+              autoFocus={!settings.userName.trim()}
+            />
+            {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
+            <View style={styles.nameActions}>
+              {settings.userName.trim() ? (
+                <TouchableOpacity style={styles.nameSecondaryButton} onPress={cancelEditingName}>
+                  <Text style={styles.nameSecondaryButtonText}>Annulla</Text>
                 </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <View style={styles.nameDisplayRow}>
-              <Text style={styles.nameDisplayText}>{settings.userName}</Text>
-              <TouchableOpacity onPress={startEditingName}>
-                <Text style={styles.nameEditLink}>Modifica</Text>
+              ) : null}
+              <TouchableOpacity style={styles.namePrimaryButton} onPress={saveName}>
+                <Text style={styles.namePrimaryButtonText}>Salva</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </WalkthroughableView>
-      </CopilotStep>
+          </>
+        ) : (
+          <View style={styles.nameDisplayRow}>
+            <Text style={styles.nameDisplayText}>{settings.userName}</Text>
+            <TouchableOpacity onPress={startEditingName}>
+              <Text style={styles.nameEditLink}>Modifica</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TutorialTarget>
 
       {showDebugRow ? (
         <View style={styles.section}>
@@ -160,17 +158,11 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Gestisci turni</Text>
-          <CopilotStep
-            name="add-shift-button"
-            order={3}
-            text="Qui crei i tuoi turni (es. Mattina, Pomeriggio, Notte, Riposo). Su ognuno puoi impostare anche una sveglia dedicata toccando l'icona della sveglia sulla riga del turno."
-          >
-            <WalkthroughableView>
-              <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
-                <Text style={styles.addLink}>+ Nuovo</Text>
-              </TouchableOpacity>
-            </WalkthroughableView>
-          </CopilotStep>
+          <TutorialTarget name="add-shift-button">
+            <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
+              <Text style={styles.addLink}>+ Nuovo</Text>
+            </TouchableOpacity>
+          </TutorialTarget>
         </View>
 
         {shiftTypes.length === 0 ? (

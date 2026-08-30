@@ -8,7 +8,7 @@ import { MonthSummary } from "../../components/MonthSummary";
 import { cancelAlarmsForDates, ensureNotificationPermission, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { CopilotStep, WalkthroughableView } from "../../lib/tutorial";
+import { TutorialTarget } from "../../lib/tutorial";
 import type { CalendarEntries, CalendarOverrides, DayShiftOverride, ShiftType } from "../../lib/types";
 
 const MONTH_NAMES = [
@@ -152,29 +152,22 @@ export default function CalendarScreen() {
       </View>
 
       {/*
-        Lo step del tutorial avvolge ENTRAMBI i rami (calendario pieno e stato
-        vuoto): durante il tutorial guidato, alla prima apertura, di solito
-        non esiste ancora nessun turno (lo si spiega solo, non si costringe a
-        crearne uno), quindi il ramo "vuoto" e' quello che si vede davvero.
-        Se lo step fosse solo dentro il ramo "pieno", su un'app nuova non si
-        registrerebbe mai e il tour salterebbe questo passaggio senza
-        spiegare nulla del calendario.
+        Avvolge ENTRAMBI i rami (calendario pieno e stato vuoto): durante il
+        tutorial guidato, alla prima apertura, di solito non esiste ancora
+        nessun turno (lo si spiega solo, non si costringe a crearne uno),
+        quindi e' il ramo "vuoto" quello che si evidenzia davvero in quel
+        momento.
       */}
-      <CopilotStep
-        name="calendar-overview"
-        order={6}
-        text="Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno."
-      >
-        <WalkthroughableView style={{ gap: theme.spacing.md }}>
-          {shiftTypes.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
-              <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
-              <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
-                <Text style={styles.emptyButtonText}>Vai alla Home</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
+      <TutorialTarget name="calendar-overview" style={{ gap: theme.spacing.md }}>
+        {shiftTypes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
+            <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
+              <Text style={styles.emptyButtonText}>Vai alla Home</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
             <>
               <MonthCalendar
                 year={year}
@@ -193,8 +186,7 @@ export default function CalendarScreen() {
               ) : null}
             </>
           )}
-        </WalkthroughableView>
-      </CopilotStep>
+      </TutorialTarget>
 
       <DayShiftSheet
         visible={selectedDate !== null}
