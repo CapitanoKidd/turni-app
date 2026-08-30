@@ -32,6 +32,15 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
+        // Di norma una schermata di un tab si monta solo la prima volta che
+        // diventa attiva ("lazy"). Il tutorial pero' naviga da una schermata
+        // all'altra e avanza subito allo step successivo: se la schermata di
+        // destinazione non si e' ancora montata, il suo CopilotStep non si e'
+        // ancora "registrato" e il tour lo salta, passando dritto allo step
+        // dopo (e' quello che succedeva col calendario: il suo step non
+        // faceva in tempo a registrarsi). Montando tutte e tre le schermate
+        // subito, i loro step sono sempre gia' pronti quando servono.
+        lazy: false,
       }}
     >
       <Tabs.Screen

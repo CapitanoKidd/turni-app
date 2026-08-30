@@ -151,39 +151,50 @@ export default function CalendarScreen() {
         </TouchableOpacity>
       </View>
 
-      {shiftTypes.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
-          <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
-          <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
-            <Text style={styles.emptyButtonText}>Vai alla Home</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <CopilotStep
-          name="calendar-overview"
-          order={6}
-          text="Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno."
-        >
-          <WalkthroughableView style={{ gap: theme.spacing.md }}>
-            <MonthCalendar
-              year={year}
-              month1To12={month}
-              entries={entries}
-              overrides={overrides}
-              shiftTypes={shiftTypes}
-              onDayPress={setSelectedDate}
-            />
-            {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
-            <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
-            {hasShifts ? (
-              <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
-                <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
+      {/*
+        Lo step del tutorial avvolge ENTRAMBI i rami (calendario pieno e stato
+        vuoto): durante il tutorial guidato, alla prima apertura, di solito
+        non esiste ancora nessun turno (lo si spiega solo, non si costringe a
+        crearne uno), quindi il ramo "vuoto" e' quello che si vede davvero.
+        Se lo step fosse solo dentro il ramo "pieno", su un'app nuova non si
+        registrerebbe mai e il tour salterebbe questo passaggio senza
+        spiegare nulla del calendario.
+      */}
+      <CopilotStep
+        name="calendar-overview"
+        order={6}
+        text="Qui vedi i turni importati: tocca un giorno per modificarlo. Puoi anche cambiare l'orario di un singolo giorno — ad esempio se quel giorno entri o esci a un orario diverso dal solito — senza toccare il tipo di turno."
+      >
+        <WalkthroughableView style={{ gap: theme.spacing.md }}>
+          {shiftTypes.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
+              <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
+                <Text style={styles.emptyButtonText}>Vai alla Home</Text>
               </TouchableOpacity>
-            ) : null}
-          </WalkthroughableView>
-        </CopilotStep>
-      )}
+            </View>
+          ) : (
+            <>
+              <MonthCalendar
+                year={year}
+                month1To12={month}
+                entries={entries}
+                overrides={overrides}
+                shiftTypes={shiftTypes}
+                onDayPress={setSelectedDate}
+              />
+              {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
+              <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
+              {hasShifts ? (
+                <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
+                  <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          )}
+        </WalkthroughableView>
+      </CopilotStep>
 
       <DayShiftSheet
         visible={selectedDate !== null}

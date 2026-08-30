@@ -1,9 +1,12 @@
 import { router } from "expo-router";
-import { useEffect, useRef, type PropsWithChildren, type ReactNode } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from "react";
+import { LayoutRectangle, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { CopilotProvider, CopilotStep, useCopilot, walkthroughable, type TooltipProps } from "react-native-copilot";
 import { storage } from "./storage";
 import { theme } from "./theme";
+
+/** Spazio in piu' tra il bordo evidenziato e l'elemento vero e proprio. */
+const HIGHLIGHT_PADDING = 8;
 
 /**
  * Tutorial guidato alla prima apertura, con react-native-copilot.
@@ -42,8 +45,47 @@ const NAVIGATE_ON_ADVANCE: Partial<Record<string, string>> = {
   "tab-home": "/(tabs)",
 };
 
+/**
+ * Il fumetto NON segue piu' la posizione dell'elemento evidenziato: e' fisso
+ * appena sopra la barra dei tab, sempre nello stesso punto dello schermo (vedi
+ * "tooltipStyle" su CopilotProvider, che rende l'intero riquadro a schermo
+ * intero cosi' le coordinate qui sotto sono gia' relative allo schermo).
+ *
+ * Motivo: la libreria calcola dove metterlo (sopra/sotto il target) misurando
+ * la posizione dell'elemento UNA volta, quando lo step si attiva — se dopo
+ * quel momento lo schermo scorre (una ScrollView lunga, es. tanti turni in
+ * "Gestisci turni") o cambia altezza (la tastiera che si apre sul campo
+ * nome), quella misura non e' piu' valida e il fumetto puo' apparire fuori
+ * schermo, tagliato. Un punto fisso, sempre sopra la barra dei tab, elimina
+ * il problema alla radice invece di rincorrere ogni singolo caso — e per lo
+ * stesso motivo l'animazione di spostamento del riquadro evidenziato e'
+ * disattivata (era comunque lenta e a scatti): il riquadro compare subito
+ * dove serve, senza intermezzi da inseguire.
+ *
+ * Il ritaglio scuro intorno all'elemento (il "buco" nell'overlay) lo disegna
+ * la libreria stessa, sempre un rettangolo netto: per farlo leggere di piu' e
+ * con angoli arrotondati, sopra ci disegniamo una cornice colorata e
+ * arrotondata, misurando lo stesso elemento con "currentStep.measure()" (la
+ * stessa funzione, gia' affidabile su questo dispositivo, che la libreria usa
+ * per il buco).
+ */
 function AppTooltip({ labels }: TooltipProps) {
   const { currentStep, goToNext, isLastStep, stop } = useCopilot();
+  const [highlightRect, setHighlightRect] = useState<LayoutRectangle | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHighlightRect(null);
+    if (currentStep) {
+      currentStep.measure().then((rect) => {
+        if (!cancelled) setHighlightRect(rect);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep]);
+
   if (!currentStep) return null;
 
   function handleAdvance() {
@@ -57,35 +99,35 @@ function AppTooltip({ labels }: TooltipProps) {
   }
 
   return (
-    <View style={styles.tooltip}>
-      <Text style={styles.tooltipText}>{currentStep.text}</Text>
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={() => stop()} hitSlop={8}>
-          <Text style={styles.skipText}>{labels.skip ?? "Salta tutorial"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.nextButton} onPress={handleAdvance}>
-          <Text style={styles.nextButtonText}>{isLastStep ? labels.finish : labels.next}</Text>
-        </TouchableOpacity>
+    <View style={styles.fullscreenLayer} pointerEvents="box-none">
+      {highlightRect ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.highlightRing,
+            {
+              left: highlightRect.x - HIGHLIGHT_PADDING,
+              top: highlightRect.y - HIGHLIGHT_PADDING,
+              width: highlightRect.width + HIGHLIGHT_PADDING * 2,
+              height: highlightRect.height + HIGHLIGHT_PADDING * 2,
+            },
+          ]}
+        />
+      ) : null}
+      <View style={[styles.tooltip, styles.tooltipBubble]}>
+        <Text style={styles.tooltipText}>{currentStep.text}</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={() => stop()} hitSlop={8}>
+            <Text style={styles.skipText}>{labels.skip ?? "Salta tutorial"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.nextButton} onPress={handleAdvance}>
+            <Text style={styles.nextButtonText}>{isLastStep ? labels.finish : labels.next}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 }
-
-/**
- * Il fumetto NON segue piu' la posizione dell'elemento evidenziato: e' fisso
- * appena sopra la barra dei tab, sempre nello stesso punto dello schermo.
- *
- * Motivo: la libreria calcola dove metterlo (sopra/sotto il target) misurando
- * la posizione dell'elemento UNA volta, quando lo step si attiva — se dopo
- * quel momento lo schermo scorre (una ScrollView lunga, es. tanti turni in
- * "Gestisci turni") o cambia altezza (la tastiera che si apre sul campo
- * nome), quella misura non e' piu' valida e il fumetto puo' apparire fuori
- * schermo, tagliato. Un punto fisso, sempre sopra la barra dei tab, elimina
- * il problema alla radice invece di rincorrere ogni singolo caso — e per lo
- * stesso motivo l'animazione di spostamento del riquadro evidenziato e'
- * disattivata (era comunque lenta e a scatti): il riquadro compare subito
- * dove serve, senza intermezzi da inseguire.
- */
 
 /** Nessun elemento visivo: solo la logica che avvia il tour e salva il completamento. */
 function TutorialController() {
@@ -146,7 +188,7 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
       stepNumberComponent={() => null}
       stopOnOutsideClick={false}
       backdropColor="rgba(4,8,16,0.82)"
-      tooltipStyle={styles.tooltipPosition}
+      tooltipStyle={styles.fullscreenLayer}
       tooltipComponent={AppTooltip}
       labels={{ skip: "Salta tutorial", previous: "Indietro", next: "Avanti", finish: "Ho capito, inizia!" }}
     >
@@ -160,20 +202,54 @@ export { CopilotStep };
 
 const styles = StyleSheet.create({
   // Sovrascrive il posizionamento che la libreria calcolerebbe in base al
-  // target (vedi il commento sopra AppTooltip): sempre alla stessa distanza
-  // dal fondo dello schermo, con margini laterali fissi, mai legato a "sopra"
-  // o "sotto" l'elemento evidenziato. "top"/"maxWidth" espliciti a undefined
-  // annullano i valori che la libreria avrebbe altrimenti impostato lei
-  // stessa in base alla misura del target.
-  tooltipPosition: {
+  // target (vedi il commento sopra AppTooltip): copre tutto lo schermo, senza
+  // offset, cosi' sia il fumetto sia la cornice evidenziata dentro
+  // AppTooltip possono posizionarsi con coordinate assolute relative allo
+  // schermo (altrimenti sarebbero relative al riquadro che la libreria
+  // stessa posizionerebbe in base al target — proprio quello che vogliamo
+  // evitare). "top/left/right/bottom/maxWidth" qui vincono su quelli che la
+  // libreria avrebbe impostato lei stessa in base alla misura del target,
+  // perche' un valore presente nell'ultimo oggetto di uno style array vince
+  // sempre su un valore per la stessa chiave nei precedenti.
+  fullscreenLayer: {
     position: "absolute",
-    top: undefined,
-    bottom: 96,
-    left: 16,
-    right: 16,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     maxWidth: undefined,
     backgroundColor: "transparent",
+    // La libreria imposta di default "paddingTop"/"paddingHorizontal" (non
+    // "padding") e "overflow: hidden" sul riquadro che ospita il fumetto:
+    // essendo chiavi di stile diverse da "padding", non basta azzerare
+    // quest'ultima per eliminarle (in RN vincono comunque, sono piu'
+    // specifiche del semplice "padding"), altrimenti sposterebbero di
+    // qualche pixel tutto cio' che posizioniamo qui dentro con coordinate
+    // assolute. Vanno azzerate esplicitamente una per una.
     padding: 0,
+    paddingTop: 0,
+    paddingHorizontal: 0,
+    borderRadius: 0,
+    overflow: "visible",
+  },
+  // Cornice colorata e arrotondata sopra il ritaglio scuro (che resta un
+  // rettangolo netto, disegnato dalla libreria): piu' visibile di un
+  // semplice buco nell'overlay, e piu' "precisa" nel far percepire i confini
+  // esatti dell'elemento — vedi il commento sopra AppTooltip per il motivo.
+  highlightRing: {
+    position: "absolute",
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: theme.colors.primary,
+    backgroundColor: "transparent",
+  },
+  // Il fumetto vero e proprio: sempre alla stessa distanza dal fondo dello
+  // schermo, con margini laterali fissi.
+  tooltipBubble: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 96,
   },
   tooltip: {
     backgroundColor: theme.colors.surface,
