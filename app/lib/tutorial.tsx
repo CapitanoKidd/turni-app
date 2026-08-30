@@ -100,6 +100,11 @@ export function useTutorialHighlight(name: string): boolean {
   return active && currentStepName === name;
 }
 
+/** true durante tutto il tour, a prescindere da quale step e' attivo: usalo per attenuare cio' che non e' il bersaglio del momento. */
+export function useTutorialActive(): boolean {
+  return useTutorialContext().active;
+}
+
 /** Da chiamare da un pulsante "Rivedi il tutorial". */
 export function useRestartTutorial(): () => void {
   const { restart } = useTutorialContext();
@@ -109,15 +114,35 @@ export function useRestartTutorial(): () => void {
 /**
  * Avvolge l'elemento da evidenziare durante lo step "name". Il bordo e'
  * sempre presente (trasparente quando non e' il turno di questo step) cosi'
- * comparire non sposta di qualche pixel il resto del layout intorno.
+ * comparire non sposta di qualche pixel il resto del layout intorno. Mentre
+ * il tour e' attivo su un ALTRO step, si attenua (stesso principio di
+ * "TutorialDim" sotto): niente "buco" scuro calcolato con coordinate, ma lo
+ * stesso identico effetto — il resto si scurisce, il bersaglio del momento
+ * resta a piena luminosita' — ottenuto solo con lo stile normale
+ * dell'elemento stesso.
  */
 export function TutorialTarget({
   name,
   style,
   children,
 }: PropsWithChildren<{ name: string; style?: StyleProp<ViewStyle> }>) {
-  const highlighted = useTutorialHighlight(name);
-  return <View style={[style, highlighted ? styles.highlightOn : styles.highlightOff]}>{children}</View>;
+  const { active, currentStepName } = useTutorialContext();
+  const highlighted = active && currentStepName === name;
+  return (
+    <View style={[style, highlighted ? styles.highlightOn : styles.highlightOff, active && !highlighted && styles.dimmed]}>
+      {children}
+    </View>
+  );
+}
+
+/**
+ * Attenua il proprio contenuto per tutta la durata del tour (non e' un
+ * bersaglio con un nome proprio, e' semplicemente "il resto della
+ * schermata"): stessa idea di TutorialTarget, senza bordo.
+ */
+export function TutorialDim({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
+  const active = useTutorialActive();
+  return <View style={[style, active && styles.dimmed]}>{children}</View>;
 }
 
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
@@ -204,6 +229,9 @@ const styles = StyleSheet.create({
     borderWidth: HIGHLIGHT_BORDER_WIDTH,
     borderColor: "transparent",
     borderRadius: theme.radius.md,
+  },
+  dimmed: {
+    opacity: 0.35,
   },
   blocker: {
     position: "absolute",

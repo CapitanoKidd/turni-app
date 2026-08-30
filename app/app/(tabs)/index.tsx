@@ -8,7 +8,7 @@ import { analyzeShiftFile, type PickedFile } from "../../lib/api";
 import { setDebugImages } from "../../lib/debugImageStore";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { TutorialTarget } from "../../lib/tutorial";
+import { TutorialDim, TutorialTarget } from "../../lib/tutorial";
 import type { AnalyzeResponse, ShiftType } from "../../lib/types";
 
 /** Caricamenti (foto/PDF/Word) concessi per giorno a un dispositivo: protezione contro l'uso eccessivo dell'analisi, non contro l'abuso deliberato (vedi storage.consumeDailyUpload). */
@@ -158,37 +158,41 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Ciao 👋</Text>
-      <Text style={styles.paragraph}>
-        Carica la griglia dei turni del mese: la analizziamo, ti mostriamo i turni trovati e, se confermi, li
-        importiamo nel calendario.
-      </Text>
-
-      <View style={styles.monthPicker}>
-        <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.monthLabel}>
-          {MONTH_NAMES[month - 1]} {year}
+      <TutorialDim style={{ gap: theme.spacing.lg }}>
+        <Text style={styles.heading}>Ciao 👋</Text>
+        <Text style={styles.paragraph}>
+          Carica la griglia dei turni del mese: la analizziamo, ti mostriamo i turni trovati e, se confermi, li
+          importiamo nel calendario.
         </Text>
-        <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+
+        <View style={styles.monthPicker}>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.monthLabel}>
+            {MONTH_NAMES[month - 1]} {year}
+          </Text>
+          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
+            <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+      </TutorialDim>
 
       <TutorialTarget name="upload-button">
         <UploadButton loading={loading} onFilePicked={handleFilePicked} />
       </TutorialTarget>
 
-      <View style={styles.stepsCard}>
-        <Step number={1} text="Carica la foto, il PDF o il Word della griglia turni" />
-        <Step number={2} text="Controlla i turni rilevati e correggi se serve" />
-        <Step number={3} text="Conferma: i turni finiscono nel calendario e (se attivo) parte la sveglia" />
-      </View>
+      <TutorialDim style={{ gap: theme.spacing.lg }}>
+        <View style={styles.stepsCard}>
+          <Step number={1} text="Carica la foto, il PDF o il Word della griglia turni" />
+          <Step number={2} text="Controlla i turni rilevati e correggi se serve" />
+          <Step number={3} text="Conferma: i turni finiscono nel calendario e (se attivo) parte la sveglia" />
+        </View>
 
-      <Text style={styles.privacyNote}>
-        Il file non viene mai salvato: viene analizzato ed eliminato subito dopo.
-      </Text>
+        <Text style={styles.privacyNote}>
+          Il file non viene mai salvato: viene analizzato ed eliminato subito dopo.
+        </Text>
+      </TutorialDim>
 
       <StaffPickerSheet
         visible={candidateNames.length > 0}

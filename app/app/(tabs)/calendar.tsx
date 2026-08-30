@@ -8,7 +8,7 @@ import { MonthSummary } from "../../components/MonthSummary";
 import { cancelAlarmsForDates, ensureNotificationPermission, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { TutorialTarget } from "../../lib/tutorial";
+import { TutorialDim, TutorialTarget } from "../../lib/tutorial";
 import type { CalendarEntries, CalendarOverrides, DayShiftOverride, ShiftType } from "../../lib/types";
 
 const MONTH_NAMES = [
@@ -139,7 +139,7 @@ export default function CalendarScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.monthPicker}>
+      <TutorialDim style={styles.monthPicker}>
         <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
@@ -149,7 +149,7 @@ export default function CalendarScreen() {
         <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
           <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
         </TouchableOpacity>
-      </View>
+      </TutorialDim>
 
       {/*
         Avvolge ENTRAMBI i rami (calendario pieno e stato vuoto): durante il

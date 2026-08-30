@@ -6,7 +6,7 @@ import { AlarmPicker } from "../../components/AlarmPicker";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { TutorialTarget, useRestartTutorial } from "../../lib/tutorial";
+import { TutorialDim, TutorialTarget, useRestartTutorial } from "../../lib/tutorial";
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
 
@@ -145,24 +145,27 @@ export default function SettingsScreen() {
       </TutorialTarget>
 
       {showDebugRow ? (
-        <View style={styles.section}>
+        <TutorialDim style={styles.section}>
           <Row
             title="Modalità debug"
             subtitle="Dopo ogni caricamento, mostra cosa ha rilevato davvero l'analisi"
             value={settings.debugMode}
             onValueChange={(debugMode) => updateSettings({ debugMode })}
           />
-        </View>
+        </TutorialDim>
       ) : null}
 
-      <View style={styles.section}>
+      {/*
+        L'intera card (intestazione + elenco) e' il bersaglio dello step: il
+        testo spiega sia la creazione dei turni sia la sveglia per turno, che
+        riguardano tutta la card, non solo il link "+ Nuovo".
+      */}
+      <TutorialTarget name="add-shift-button" style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Gestisci turni</Text>
-          <TutorialTarget name="add-shift-button">
-            <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
-              <Text style={styles.addLink}>+ Nuovo</Text>
-            </TouchableOpacity>
-          </TutorialTarget>
+          <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
+            <Text style={styles.addLink}>+ Nuovo</Text>
+          </TouchableOpacity>
         </View>
 
         {shiftTypes.length === 0 ? (
@@ -198,15 +201,17 @@ export default function SettingsScreen() {
             </View>
           ))
         )}
-      </View>
+      </TutorialTarget>
 
-      <TouchableOpacity onPress={restartTutorial}>
-        <Text style={styles.replayTutorialLink}>Rivedi il tutorial</Text>
-      </TouchableOpacity>
+      <TutorialDim style={{ gap: theme.spacing.lg }}>
+        <TouchableOpacity onPress={restartTutorial}>
+          <Text style={styles.replayTutorialLink}>Rivedi il tutorial</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.privacyNote}>
-        I file caricati per l'analisi non vengono mai salvati: vengono eliminati subito dopo la lettura dei turni.
-      </Text>
+        <Text style={styles.privacyNote}>
+          I file caricati per l'analisi non vengono mai salvati: vengono eliminati subito dopo la lettura dei turni.
+        </Text>
+      </TutorialDim>
 
       <Modal visible={editingShift !== undefined} transparent animationType="fade" onRequestClose={() => setAlarmShiftId(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setAlarmShiftId(null)}>
