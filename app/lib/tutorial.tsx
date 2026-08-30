@@ -380,6 +380,10 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
           {"\n"}3) UIManager: {debugInfo.viaUIManager}
           {"\n"}ambiente: {Platform.OS} {Platform.Version} · finestra {Math.round(Dimensions.get("window").width)}x
           {Math.round(Dimensions.get("window").height)}
+          {/* I 3 metodi sopra restituiscono TUTTI argomenti undefined (non solo non validi): sospetto forte che sia
+              la New Architecture (Fabric) di React Native, dove le vecchie API measureInWindow/measure/UIManager
+              a volte non funzionano. Questa riga lo conferma con certezza (e' un flag globale che esiste SOLO se Fabric e' attivo). */}
+          {"\n"}architettura: {typeof (global as Record<string, unknown>).nativeFabricUIManager !== "undefined" ? "FABRIC (nuova)" : "Paper (vecchia)"}
         </Text>
       </View>
       {/*
