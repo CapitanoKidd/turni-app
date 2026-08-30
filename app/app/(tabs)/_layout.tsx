@@ -1,25 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { View } from "react-native";
 import { theme } from "../../lib/theme";
-import { CopilotStep, WalkthroughableView } from "../../lib/tutorial";
+import { useTutorialTarget } from "../../lib/tutorial";
 
-/** Avvolge l'icona di un tab in uno step del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
-function TutorialTabIcon({
-  id,
-  order,
-  text,
-  children,
-}: {
-  id: "tab-settings" | "tab-calendar";
-  order: number;
-  text: string;
-  children: React.ReactElement;
-}) {
-  return (
-    <CopilotStep name={id} order={order} text={text}>
-      <WalkthroughableView>{children}</WalkthroughableView>
-    </CopilotStep>
-  );
+/** Avvolge l'icona di un tab in un target del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
+function TutorialTabIcon({ id, children }: { id: "tab-settings" | "tab-calendar"; children: React.ReactNode }) {
+  const ref = useTutorialTarget(id);
+  return <View ref={ref}>{children}</View>;
 }
 
 export default function TabsLayout() {
@@ -46,7 +34,7 @@ export default function TabsLayout() {
         options={{
           title: "Calendario",
           tabBarIcon: ({ color, size }) => (
-            <TutorialTabIcon id="tab-calendar" order={4} text="Ora vai al calendario.">
+            <TutorialTabIcon id="tab-calendar">
               <Ionicons name="calendar" size={size} color={color} />
             </TutorialTabIcon>
           ),
@@ -57,7 +45,7 @@ export default function TabsLayout() {
         options={{
           title: "Impostazioni",
           tabBarIcon: ({ color, size }) => (
-            <TutorialTabIcon id="tab-settings" order={1} text="Benvenuto! Inizia da qui: tocca Impostazioni.">
+            <TutorialTabIcon id="tab-settings">
               <Ionicons name="settings" size={size} color={color} />
             </TutorialTabIcon>
           ),
