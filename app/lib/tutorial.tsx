@@ -1,8 +1,10 @@
 import { router, usePathname } from "expo-router";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PropsWithChildren,
@@ -179,16 +181,26 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     });
   }
 
-  function restart() {
+  const restart = useCallback(() => {
     // Il primo step si aspetta di partire dalla Home (mostra "tocca
     // Impostazioni"): se si restasse sulla schermata da cui si preme
     // "Rivedi il tutorial" (Impostazioni), lo step scatterebbe subito
     // avanti da solo, perche' la route e' gia' quella giusta, e l'utente
     // non lo vedrebbe mai.
+    //
+    // Il ritardo prima di attivare lo step 0 non e' decorativo: la
+    // navigazione (router.push) e lo stato del tutorial (setStepIndex) sono
+    // due fonti separate che si aggiornano in momenti diversi. Attivando lo
+    // step subito, per un istante "pathname" potrebbe riportare ancora
+    // "/settings" (la schermata da cui si e' partiti): lo step 0 lo
+    // leggerebbe come "sei gia' li'", avanzerebbe subito da solo, e
+    // l'utente non vedrebbe mai comparire nulla — esattamente il sintomo
+    // "torna alla home e non succede niente". Aspettare che la transizione
+    // sia conclusa evita la corsa.
     router.push("/(tabs)");
     setRect(null);
-    setStepIndex(0);
-  }
+    setTimeout(() => setStepIndex(0), 350);
+  }, []);
 
   // Step "route": avanzano da soli quando la navigazione porta sulla route giusta.
   useEffect(() => {
@@ -249,20 +261,38 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     };
   }, [currentStep]);
 
-  const contextValue: TutorialContextValue = {
-    currentStepId: currentStep?.id ?? null,
-    registerTarget: (id, ref) => {
-      targetsRef.current.set(id, ref);
-    },
-    unregisterTarget: (id) => {
-      if (targetsRef.current.get(id)) targetsRef.current.delete(id);
-    },
-    reportCondition: (id, met) => {
+  // Stabili tra i render (dipendono solo dal ref, mai da stato che cambia
+  // spesso): senza questo, ogni singolo re-render di TutorialProvider (che
+  // succede a ogni cambio di pathname in QUALSIASI punto dell'app, dato che
+  // usePathname() vive qui) avrebbe ricreato l'intero contextValue, e ogni
+  // componente che usa useTutorialTarget/useTutorialCondition in tutta
+  // l'app (anche su schermate non visibili) avrebbe rieseguito il proprio
+  // effetto di registrazione — inutile, e un potenziale terreno per corse
+  // fra cancellazione e nuova registrazione dello stesso target.
+  const registerTarget = useCallback((id: TutorialStepId, ref: RefObject<View>) => {
+    targetsRef.current.set(id, ref);
+  }, []);
+  const unregisterTarget = useCallback((id: TutorialStepId) => {
+    targetsRef.current.delete(id);
+  }, []);
+  const reportCondition = useCallback(
+    (id: TutorialStepId, met: boolean) => {
       if (!met) return;
       if (currentStep?.id === id && currentStep.advance === "condition") goNext();
     },
-    restart,
-  };
+    [currentStep],
+  );
+
+  const contextValue: TutorialContextValue = useMemo(
+    () => ({
+      currentStepId: currentStep?.id ?? null,
+      registerTarget,
+      unregisterTarget,
+      reportCondition,
+      restart,
+    }),
+    [currentStep, registerTarget, unregisterTarget, reportCondition, restart],
+  );
 
   return (
     <TutorialContext.Provider value={contextValue}>
