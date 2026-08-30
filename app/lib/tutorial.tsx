@@ -309,6 +309,8 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
         <Text style={styles.debugBadgeText}>
           tutorial: step={stepIndex === null ? "caricamento" : stepIndex} ({currentStep?.id ?? "nessuno"}) rect=
           {rect ? "trovato" : "no"} path={pathname}
+          {"\n"}bersagli registrati: {targetsRef.current.size === 0 ? "(nessuno)" : [...targetsRef.current.keys()].join(", ")}
+          {"\n"}nodo attivo: {currentStep ? (targetsRef.current.get(currentStep.id)?.current ? "presente" : "MANCANTE") : "-"}
         </Text>
       </View>
       {/*
