@@ -11,31 +11,29 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import {
-  Animated,
-  Dimensions,
-  findNodeHandle,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  UIManager,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Animated, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { storage } from "./storage";
 import { theme } from "./theme";
 
 /**
  * Tutorial guidato alla prima apertura: overlay scritto a mano, NON dentro
- * un Modal nativo. react-native-copilot (provato prima) disegna il suo
- * overlay dentro un <Modal>, che su Android/iOS e' una finestra nativa
- * separata dal resto dell'app: un tocco su quella finestra non puo' MAI
- * raggiungere un elemento sotto (es. la vera icona "Impostazioni" nella
- * barra dei tab), qualunque fosse la modalita' scelta — limite strutturale
- * della libreria, non risolvibile. Qui l'overlay e' invece una vista
- * normale nello stesso albero dell'app: il "buco" lascia passare i tocchi
- * davvero, perche' semplicemente non c'e' nessuna vista sopra quel punto.
+ * un Modal nativo (un Modal e' una finestra separata dal resto dell'app:
+ * un tocco su quella finestra non puo' mai raggiungere un elemento sotto —
+ * provato con react-native-copilot, scartato per questo motivo). Qui
+ * l'overlay e' una vista normale nello stesso albero dell'app: il "buco"
+ * lascia passare i tocchi davvero, perche' semplicemente non c'e' nessuna
+ * vista sopra quel punto.
+ *
+ * Il posizionamento del "buco" intorno all'elemento da evidenziare dipende
+ * da measureInWindow(), un'API nativa che su alcuni dispositivi/versioni di
+ * React Native puo' non restituire mai una misura valida (verificato: tre
+ * API di misura indipendenti — measureInWindow, measure, UIManager diretto
+ * — davano tutte argomenti "undefined", un fallimento sistemico, non un
+ * bug isolato). Percio' il design non dipende da quella misura per
+ * FUNZIONARE, solo per essere piu' bello da vedere: se dopo un tempo
+ * ragionevole non arriva nessuna misura valida, si passa a un fumetto
+ * fisso che non blocca nulla (l'utente puo' comunque toccare il vero
+ * elemento) invece di sparire — vedi FALLBACK_TIMEOUT_MS piu' sotto.
  */
 
 export type TutorialStepId =
@@ -160,20 +158,19 @@ export function useRestartTutorial(): () => void {
 const MEASURE_INTERVAL_MS = 300;
 const HOLE_PADDING = 6;
 const MOVE_THRESHOLD = 1; // px: sotto questa soglia non si aggiorna, per non "tremolare" per arrotondamenti
+/**
+ * Quanto aspettare una misura valida prima di passare al fumetto fisso di
+ * riserva. Abbastanza per un mount/animazione normali (il resto dell'app
+ * non ha mai impiegato piu' di una manciata di millisecondi), poco
+ * abbastanza da non far sembrare il tutorial rotto se la misura non arriva
+ * mai (es. dispositivo dove measureInWindow non funziona).
+ */
+const FALLBACK_TIMEOUT_MS = 1200;
 
 export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   const [stepIndex, setStepIndex] = useState<number | null>(null); // null finche' non sappiamo se va mostrato
   const [rect, setRect] = useState<Rect | null>(null);
-  // DEBUG: tre modi diversi di misurare la STESSA vista, per capire se il
-  // problema e' specifico di measureInWindow o e' piu' a monte (vista mai
-  // "attaccata" alla finestra, nodo senza dimensioni, ecc).
-  const [debugInfo, setDebugInfo] = useState({
-    nodeStatus: "mai controllato",
-    viaMeasureInWindow: "mai chiamato",
-    viaMeasure: "mai chiamato",
-    viaUIManager: "mai chiamato",
-    attempts: 0,
-  });
+  const [measureTimedOut, setMeasureTimedOut] = useState(false);
   const targetsRef = useRef(new Map<TutorialStepId, RefObject<View>>());
   const pathname = usePathname();
   const { height: windowHeight } = useWindowDimensions();
@@ -206,18 +203,13 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     // Il primo step si aspetta di partire dalla Home (mostra "tocca
     // Impostazioni"): se si restasse sulla schermata da cui si preme
     // "Rivedi il tutorial" (Impostazioni), lo step scatterebbe subito
-    // avanti da solo, perche' la route e' gia' quella giusta, e l'utente
-    // non lo vedrebbe mai.
+    // avanti da solo, perche' la route e' gia' quella giusta.
     //
-    // Il ritardo prima di attivare lo step 0 non e' decorativo: la
-    // navigazione (router.push) e lo stato del tutorial (setStepIndex) sono
-    // due fonti separate che si aggiornano in momenti diversi. Attivando lo
-    // step subito, per un istante "pathname" potrebbe riportare ancora
-    // "/settings" (la schermata da cui si e' partiti): lo step 0 lo
-    // leggerebbe come "sei gia' li'", avanzerebbe subito da solo, e
-    // l'utente non vedrebbe mai comparire nulla — esattamente il sintomo
-    // "torna alla home e non succede niente". Aspettare che la transizione
-    // sia conclusa evita la corsa.
+    // Il ritardo prima di attivare lo step 0 evita una corsa fra due fonti
+    // di stato separate (la navigazione e lo stepIndex locale): senza,
+    // "pathname" poteva per un istante riportare ancora la schermata di
+    // partenza, facendo scattare lo step avanti da solo prima ancora di
+    // comparire.
     router.push("/(tabs)");
     setRect(null);
     setTimeout(() => setStepIndex(0), 350);
@@ -234,7 +226,9 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   // che finiscono di montare/animarsi dopo il cambio di step, senza dover
   // intercettare ogni evento di layout/scroll possibile. Aggiorna lo stato
   // solo se la posizione e' cambiata davvero, per non causare un ridisegno
-  // continuo (e un leggero tremolio) ogni 300ms a riposo.
+  // continuo ogni 300ms a riposo. Se non arriva mai una misura valida
+  // entro FALLBACK_TIMEOUT_MS, measureTimedOut fa passare al fumetto fisso
+  // di riserva (vedi il commento in cima al file).
   useEffect(() => {
     // Azzera subito, non solo quando il tour finisce: senza questo, appena
     // uno step cambia schermata (es. da Impostazioni all'editor del turno),
@@ -242,86 +236,47 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
     // posto sbagliato, sopra una schermata che non c'entra — finche' la
     // prima misurazione del nuovo target non arrivava.
     setRect(null);
+    setMeasureTimedOut(false);
     if (!currentStep) return;
     let cancelled = false;
 
     function measure() {
       const ref = targetsRef.current.get(currentStep!.id);
       const node = ref?.current;
-      setDebugInfo((prev) => ({ ...prev, attempts: prev.attempts + 1 }));
-
-      if (!node) {
-        setDebugInfo((prev) => ({ ...prev, nodeStatus: "nodo assente" }));
-        return;
-      }
-      setDebugInfo((prev) => ({ ...prev, nodeStatus: "presente" }));
-
-      // Metodo 1 (quello gia' in uso): measureInWindow sull'istanza.
-      if (node.measureInWindow) {
-        node.measureInWindow((x, y, width, height) => {
-          if (cancelled) return;
-          setDebugInfo((prev) => ({ ...prev, viaMeasureInWindow: `x=${x} y=${y} w=${width} h=${height}` }));
-          // measureInWindow puo' restituire NaN (non zero: proprio NaN) su
-          // Android quando la vista non e' ancora "attaccata" alla finestra
-          // — un controllo tipo "width <= 0" NON lo scarta: qualsiasi
-          // confronto numerico con NaN e' sempre false, quindi il valore
-          // passerebbe indisturbato. Number.isFinite e' l'unico controllo
-          // che lo rileva davvero.
-          if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
-          setRect((prevRect) => {
-            if (
-              prevRect &&
-              Math.abs(prevRect.x - x) < MOVE_THRESHOLD &&
-              Math.abs(prevRect.y - y) < MOVE_THRESHOLD &&
-              Math.abs(prevRect.width - width) < MOVE_THRESHOLD &&
-              Math.abs(prevRect.height - height) < MOVE_THRESHOLD
-            ) {
-              return prevRect;
-            }
-            return { x, y, width, height };
-          });
+      if (!node?.measureInWindow) return;
+      node.measureInWindow((x, y, width, height) => {
+        if (cancelled) return;
+        // measureInWindow puo' restituire NaN (non zero: proprio NaN) o,
+        // su alcuni dispositivi, argomenti del tutto assenti — un
+        // controllo tipo "width <= 0" NON basta: qualsiasi confronto
+        // numerico con NaN e' sempre false, quindi il valore passerebbe
+        // indisturbato. Number.isFinite e' l'unico controllo che lo
+        // rileva davvero (e scarta anche "undefined").
+        if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+        setRect((prev) => {
+          if (
+            prev &&
+            Math.abs(prev.x - x) < MOVE_THRESHOLD &&
+            Math.abs(prev.y - y) < MOVE_THRESHOLD &&
+            Math.abs(prev.width - width) < MOVE_THRESHOLD &&
+            Math.abs(prev.height - height) < MOVE_THRESHOLD
+          ) {
+            return prev;
+          }
+          return { x, y, width, height };
         });
-      } else {
-        setDebugInfo((prev) => ({ ...prev, viaMeasureInWindow: "metodo assente sul nodo" }));
-      }
-
-      // Metodo 2: measure() sull'istanza — API piu' vecchia, restituisce
-      // anche pageX/pageY (posizione assoluta calcolata diversamente
-      // internamente da measureInWindow).
-      if (node.measure) {
-        node.measure((x, y, width, height, pageX, pageY) => {
-          if (cancelled) return;
-          setDebugInfo((prev) => ({
-            ...prev,
-            viaMeasure: `w=${width} h=${height} pageX=${pageX} pageY=${pageY}`,
-          }));
-        });
-      } else {
-        setDebugInfo((prev) => ({ ...prev, viaMeasure: "metodo assente sul nodo" }));
-      }
-
-      // Metodo 3: UIManager diretto (bypassa il metodo di istanza,
-      // chiamando la stessa API nativa per un'altra via).
-      try {
-        const tag = findNodeHandle(node);
-        if (tag == null) {
-          setDebugInfo((prev) => ({ ...prev, viaUIManager: "findNodeHandle ha dato null" }));
-        } else {
-          UIManager.measureInWindow(tag, (x: number, y: number, width: number, height: number) => {
-            if (cancelled) return;
-            setDebugInfo((prev) => ({ ...prev, viaUIManager: `x=${x} y=${y} w=${width} h=${height}` }));
-          });
-        }
-      } catch (e) {
-        setDebugInfo((prev) => ({ ...prev, viaUIManager: `eccezione: ${String(e)}` }));
-      }
+      });
     }
 
     measure();
     const interval = setInterval(measure, MEASURE_INTERVAL_MS);
+    const timeout = setTimeout(() => {
+      if (!cancelled) setMeasureTimedOut(true);
+    }, FALLBACK_TIMEOUT_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      clearTimeout(timeout);
     };
   }, [currentStep]);
 
@@ -331,8 +286,7 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   // usePathname() vive qui) avrebbe ricreato l'intero contextValue, e ogni
   // componente che usa useTutorialTarget/useTutorialCondition in tutta
   // l'app (anche su schermate non visibili) avrebbe rieseguito il proprio
-  // effetto di registrazione — inutile, e un potenziale terreno per corse
-  // fra cancellazione e nuova registrazione dello stesso target.
+  // effetto di registrazione.
   const registerTarget = useCallback((id: TutorialStepId, ref: RefObject<View>) => {
     targetsRef.current.set(id, ref);
   }, []);
@@ -361,49 +315,24 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   return (
     <TutorialContext.Provider value={contextValue}>
       {children}
-      {/*
-        Etichetta diagnostica TEMPORANEA (da togliere una volta capito
-        perche' l'overlay non compariva mai): mostra lo stato interno vero,
-        sempre, indipendentemente dal resto — cosi' la prossima prova dice
-        con certezza SE il problema e' "lo step non parte mai" o "lo step
-        parte ma l'overlay non si vede", invece di doverlo indovinare da
-        "non succede nulla".
-      */}
-      <View pointerEvents="none" style={styles.debugBadge}>
-        <Text style={styles.debugBadgeText}>
-          tutorial: step={stepIndex === null ? "caricamento" : stepIndex} ({currentStep?.id ?? "nessuno"}) rect=
-          {rect ? "trovato" : "no"} path={pathname}
-          {"\n"}bersagli registrati: {targetsRef.current.size === 0 ? "(nessuno)" : [...targetsRef.current.keys()].join(", ")}
-          {"\n"}nodo: {debugInfo.nodeStatus} (tentativi: {debugInfo.attempts})
-          {"\n"}1) measureInWindow: {debugInfo.viaMeasureInWindow}
-          {"\n"}2) measure: {debugInfo.viaMeasure}
-          {"\n"}3) UIManager: {debugInfo.viaUIManager}
-          {"\n"}ambiente: {Platform.OS} {Platform.Version} · finestra {Math.round(Dimensions.get("window").width)}x
-          {Math.round(Dimensions.get("window").height)}
-          {/* I 3 metodi sopra restituiscono TUTTI argomenti undefined (non solo non validi): sospetto forte che sia
-              la New Architecture (Fabric) di React Native, dove le vecchie API measureInWindow/measure/UIManager
-              a volte non funzionano. Questa riga lo conferma con certezza (e' un flag globale che esiste SOLO se Fabric e' attivo). */}
-          {"\n"}architettura: {typeof (global as Record<string, unknown>).nativeFabricUIManager !== "undefined" ? "FABRIC (nuova)" : "Paper (vecchia)"}
-        </Text>
-      </View>
-      {/*
-        Si mostra solo quando il target dello step attivo e' stato davvero
-        misurato ("rect" non nullo). Con step che vivono su schermate
-        diverse (es. "add-shift-button" su Impostazioni ma il passo
-        successivo, "shift-alarm", ha il suo target di nuovo su
-        Impostazioni dopo essere passati dall'editor del turno) il target
-        a volte non esiste affatto sulla schermata corrente: niente da
-        evidenziare, quindi niente overlay — l'utente resta libero di
-        usare la schermata (es. compilare il modulo del nuovo turno) senza
-        che nulla lo blocchi. Riappare da solo appena si torna su una
-        schermata dove il target dello step attivo esiste.
-      */}
       {running && rect ? (
+        // Caso normale: la misura e' arrivata, si vede la versione bella
+        // con il riquadro ritagliato intorno all'elemento vero.
         <TutorialOverlay
           key={currentStep!.id}
           step={currentStep!}
           rect={rect}
           windowHeight={windowHeight}
+          onAdvanceButton={currentStep!.isLast ? finish : goNext}
+          onSkip={finish}
+        />
+      ) : running && measureTimedOut ? (
+        // Riserva: la misura non e' mai arrivata entro il tempo limite.
+        // Nessun riquadro scuro (non sapremmo dove lasciare il buco), solo
+        // il fumetto fisso — l'utente resta libero di toccare qualunque
+        // cosa, compreso il vero elemento a cui lo step si riferisce.
+        <FallbackTooltip
+          step={currentStep!}
           onAdvanceButton={currentStep!.isLast ? finish : goNext}
           onSkip={finish}
         />
@@ -480,21 +409,51 @@ function TutorialOverlay({
   );
 }
 
+/**
+ * Versione di riserva: nessun riquadro scuro ne' buco ritagliato (non
+ * sappiamo dove metterlo), solo il testo dello step in un fumetto fisso in
+ * basso. pointerEvents="box-none" sul contenitore: tutto il resto dello
+ * schermo resta toccabile normalmente, compreso il vero elemento a cui lo
+ * step si riferisce — l'utente puo' comunque completare il passo.
+ */
+function FallbackTooltip({
+  step,
+  onAdvanceButton,
+  onSkip,
+}: {
+  step: StepDef;
+  onAdvanceButton: () => void;
+  onSkip: () => void;
+}) {
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [fade, step.id]);
+
+  return (
+    <Animated.View
+      style={[StyleSheet.absoluteFill, styles.overlayRoot, { opacity: fade }]}
+      pointerEvents="box-none"
+    >
+      <View style={[styles.tooltip, styles.fallbackTooltip]}>
+        <Text style={styles.tooltipText}>{step.text}</Text>
+        <View style={styles.tooltipActions}>
+          <TouchableOpacity onPress={onSkip} hitSlop={8}>
+            <Text style={styles.skipText}>Salta tutorial</Text>
+          </TouchableOpacity>
+          {step.advance === "button" ? (
+            <TouchableOpacity style={styles.nextButton} onPress={onAdvanceButton}>
+              <Text style={styles.nextButtonText}>{step.buttonLabel}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
-  // TEMPORANEO: vedi commento sopra. zIndex/elevation alti apposta, per
-  // escludere anche l'ipotesi "qualcos'altro lo copre".
-  debugBadge: {
-    position: "absolute",
-    top: 40,
-    left: 8,
-    right: 8,
-    zIndex: 9999,
-    elevation: 9999,
-    backgroundColor: "#ff00ff",
-    padding: 6,
-    borderRadius: 6,
-  },
-  debugBadgeText: { color: "#000", fontSize: 11, fontWeight: "700" },
   overlayRoot: { zIndex: 9998, elevation: 9998 },
   mask: { position: "absolute", backgroundColor: "rgba(4,8,16,0.82)" },
   holeBorder: {
@@ -517,6 +476,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  fallbackTooltip: { bottom: 90 },
   tooltipText: { color: theme.colors.text, fontSize: 15, lineHeight: 21 },
   tooltipActions: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   skipText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: "600" },
