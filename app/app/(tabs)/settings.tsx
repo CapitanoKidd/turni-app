@@ -6,7 +6,7 @@ import { AlarmPicker } from "../../components/AlarmPicker";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import { useTutorialCondition, useTutorialTarget } from "../../lib/tutorial";
+import { CopilotStep, useAdvanceWhenUsernameFilled, WalkthroughableView } from "../../lib/tutorial";
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
 
@@ -103,48 +103,52 @@ export default function SettingsScreen() {
   const showDebugRow = settings.userName.trim().toLowerCase() === DEBUG_UNLOCK_NAME;
   const editingShift = shiftTypes.find((s) => s.id === alarmShiftId);
 
-  useTutorialCondition("username-input", Boolean(settings.userName.trim()));
-  const usernameTarget = useTutorialTarget("username-input");
-  const manageShiftsTarget = useTutorialTarget("manage-shifts");
+  useAdvanceWhenUsernameFilled(Boolean(settings.userName.trim()));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.section} ref={usernameTarget}>
-        <Text style={styles.fieldLabel}>Nome utente</Text>
-        {editingName ? (
-          <>
-            <TextInput
-              style={styles.input}
-              value={nameDraft}
-              onChangeText={(value) => {
-                setNameDraft(value);
-                if (nameError) setNameError(null);
-              }}
-              placeholder="Il tuo nome"
-              placeholderTextColor={theme.colors.textMuted}
-              autoFocus={!settings.userName.trim()}
-            />
-            {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
-            <View style={styles.nameActions}>
-              {settings.userName.trim() ? (
-                <TouchableOpacity style={styles.nameSecondaryButton} onPress={cancelEditingName}>
-                  <Text style={styles.nameSecondaryButtonText}>Annulla</Text>
+      <CopilotStep
+        name="username-input"
+        order={2}
+        text="Inserisci il tuo nome: serve per riconoscere la tua riga nei documenti che carichi."
+      >
+        <WalkthroughableView style={styles.section}>
+          <Text style={styles.fieldLabel}>Nome utente</Text>
+          {editingName ? (
+            <>
+              <TextInput
+                style={styles.input}
+                value={nameDraft}
+                onChangeText={(value) => {
+                  setNameDraft(value);
+                  if (nameError) setNameError(null);
+                }}
+                placeholder="Il tuo nome"
+                placeholderTextColor={theme.colors.textMuted}
+                autoFocus={!settings.userName.trim()}
+              />
+              {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
+              <View style={styles.nameActions}>
+                {settings.userName.trim() ? (
+                  <TouchableOpacity style={styles.nameSecondaryButton} onPress={cancelEditingName}>
+                    <Text style={styles.nameSecondaryButtonText}>Annulla</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.namePrimaryButton} onPress={saveName}>
+                  <Text style={styles.namePrimaryButtonText}>Salva</Text>
                 </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity style={styles.namePrimaryButton} onPress={saveName}>
-                <Text style={styles.namePrimaryButtonText}>Salva</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.nameDisplayRow}>
+              <Text style={styles.nameDisplayText}>{settings.userName}</Text>
+              <TouchableOpacity onPress={startEditingName}>
+                <Text style={styles.nameEditLink}>Modifica</Text>
               </TouchableOpacity>
             </View>
-          </>
-        ) : (
-          <View style={styles.nameDisplayRow}>
-            <Text style={styles.nameDisplayText}>{settings.userName}</Text>
-            <TouchableOpacity onPress={startEditingName}>
-              <Text style={styles.nameEditLink}>Modifica</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
+        </WalkthroughableView>
+      </CopilotStep>
 
       {showDebugRow ? (
         <View style={styles.section}>
@@ -157,48 +161,54 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
-      <View style={styles.section} ref={manageShiftsTarget}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Gestisci turni</Text>
-          <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
-            <Text style={styles.addLink}>+ Nuovo</Text>
-          </TouchableOpacity>
-        </View>
+      <CopilotStep
+        name="manage-shifts"
+        order={3}
+        text="Qui crei i tuoi turni (es. Mattina, Pomeriggio, Notte, Riposo). Su ognuno puoi impostare anche una sveglia dedicata toccando l'icona della sveglia sulla riga del turno."
+      >
+        <WalkthroughableView style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Gestisci turni</Text>
+            <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
+              <Text style={styles.addLink}>+ Nuovo</Text>
+            </TouchableOpacity>
+          </View>
 
-        {shiftTypes.length === 0 ? (
-          <Text style={styles.emptyText}>Nessun turno definito. I turni vengono creati anche automaticamente quando importi la griglia dalla Home.</Text>
-        ) : (
-          shiftTypes.map((shift) => (
-            <View key={shift.id} style={styles.shiftRow}>
-              <TouchableOpacity
-                style={styles.shiftRowMain}
-                onPress={() => router.push({ pathname: "/shift-type-editor", params: { id: shift.id } })}
-              >
-                <View style={[styles.dot, { backgroundColor: shift.color }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.shiftLabel}>{shift.label}</Text>
-                  <Text style={styles.shiftTime}>
-                    {isDayOff(shift)
-                      ? shift.isVacation
-                        ? "Ferie"
-                        : "Riposo"
-                      : `${shift.startTime}-${shift.endTime}${shift.alarmEnabled ? ` · sveglia ${shift.alarmTime}` : ""}`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              {!isDayOff(shift) ? (
-                <TouchableOpacity style={styles.alarmIconButton} onPress={() => openAlarmEditor(shift)}>
-                  <Ionicons
-                    name={shift.alarmEnabled ? "alarm" : "alarm-outline"}
-                    size={22}
-                    color={shift.alarmEnabled ? theme.colors.primary : theme.colors.textMuted}
-                  />
+          {shiftTypes.length === 0 ? (
+            <Text style={styles.emptyText}>Nessun turno definito. I turni vengono creati anche automaticamente quando importi la griglia dalla Home.</Text>
+          ) : (
+            shiftTypes.map((shift) => (
+              <View key={shift.id} style={styles.shiftRow}>
+                <TouchableOpacity
+                  style={styles.shiftRowMain}
+                  onPress={() => router.push({ pathname: "/shift-type-editor", params: { id: shift.id } })}
+                >
+                  <View style={[styles.dot, { backgroundColor: shift.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.shiftLabel}>{shift.label}</Text>
+                    <Text style={styles.shiftTime}>
+                      {isDayOff(shift)
+                        ? shift.isVacation
+                          ? "Ferie"
+                          : "Riposo"
+                        : `${shift.startTime}-${shift.endTime}${shift.alarmEnabled ? ` · sveglia ${shift.alarmTime}` : ""}`}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
-              ) : null}
-            </View>
-          ))
-        )}
-      </View>
+                {!isDayOff(shift) ? (
+                  <TouchableOpacity style={styles.alarmIconButton} onPress={() => openAlarmEditor(shift)}>
+                    <Ionicons
+                      name={shift.alarmEnabled ? "alarm" : "alarm-outline"}
+                      size={22}
+                      color={shift.alarmEnabled ? theme.colors.primary : theme.colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))
+          )}
+        </WalkthroughableView>
+      </CopilotStep>
 
       <Text style={styles.privacyNote}>
         I file caricati per l'analisi non vengono mai salvati: vengono eliminati subito dopo la lettura dei turni.
