@@ -51,14 +51,38 @@ export async function analyzeShiftFile(
   // Niente header Content-Type esplicito: fetch/FormData deve generarlo da
   // solo per includere il "boundary" del multipart. Impostandolo a mano si
   // rompe il parsing del file lato backend.
-  const response = await fetch(`${getApiBaseUrl()}/api/analyze`, {
-    method: "POST",
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/analyze`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    // fetch lancia solo per problemi di rete (offline, DNS, connessione
+    // rifiutata): il server non e' mai stato raggiunto.
+    throw new Error("Connessione assente o instabile: controlla la connessione e riprova.");
+  }
 
-  const payload = (await response.json()) as AnalyzeResponse;
+  let payload: AnalyzeResponse;
+  try {
+    payload = (await response.json()) as AnalyzeResponse;
+  } catch {
+    throw new Error(GENERIC_ANALYSIS_ERROR);
+  }
+
   if (!response.ok || !payload.success) {
-    throw new Error(payload.error ?? "Analisi del documento fallita.");
+    // 429 (troppe richieste) e 400 (validazione: file mancante, ecc.) sono
+    // gia' messaggi scritti per essere letti dall'utente. Tutto il resto
+    // (500 con dettagli tecnici di Azure, 503 di servizio non disponibile)
+    // non e' azionabile da chi carica il documento: meglio un messaggio
+    // unico e comprensibile che un errore tecnico che non puo' risolvere.
+    if (response.status === 429 || response.status === 400) {
+      throw new Error(payload.error ?? "Richiesta non valida.");
+    }
+    throw new Error(GENERIC_ANALYSIS_ERROR);
   }
   return payload;
 }
+
+const GENERIC_ANALYSIS_ERROR =
+  "Mi dispiace, non sono riuscito ad analizzare il tuo documento. Prova con un'immagine o un PDF più leggibile.";

@@ -1,15 +1,22 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useEffect, useState } from "react";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { dateToTimeString, timeStringToDate } from "../lib/time";
 import { theme } from "../lib/theme";
-import { isDayOff, type ShiftType } from "../lib/types";
+import { isDayOff, type DayShiftOverride, type ShiftType } from "../lib/types";
 
 interface DayShiftSheetProps {
   visible: boolean;
   dateIso: string | null;
   shiftTypes: ShiftType[];
   currentShiftTypeId?: string;
+  /** Orario personalizzato gia' impostato per questo giorno, se presente. */
+  override?: DayShiftOverride;
   onClose: () => void;
   onSelectShiftType: (shiftTypeId: string) => void;
   onRemoveShift: () => void;
+  onSaveOverride: (override: DayShiftOverride) => void;
+  onClearOverride: () => void;
   onCreateShiftType: () => void;
 }
 
@@ -24,12 +31,39 @@ export function DayShiftSheet({
   dateIso,
   shiftTypes,
   currentShiftTypeId,
+  override,
   onClose,
   onSelectShiftType,
   onRemoveShift,
+  onSaveOverride,
+  onClearOverride,
   onCreateShiftType,
 }: DayShiftSheetProps) {
+  const currentShiftType = shiftTypes.find((s) => s.id === currentShiftTypeId);
+  const canOverride = Boolean(currentShiftType) && !isDayOff(currentShiftType!);
+
+  const [editingOverride, setEditingOverride] = useState(false);
+  const [activePicker, setActivePicker] = useState<"start" | "end" | null>(null);
+  const [draftStart, setDraftStart] = useState("");
+  const [draftEnd, setDraftEnd] = useState("");
+
+  // Ogni volta che si apre il foglio (o cambia il giorno) si riparte da zero:
+  // niente editor di orario aperto residuo da un giorno precedente.
+  useEffect(() => {
+    if (!visible) return;
+    setEditingOverride(false);
+    setActivePicker(null);
+    setDraftStart(override?.startTime ?? currentShiftType?.startTime ?? "06:00");
+    setDraftEnd(override?.endTime ?? currentShiftType?.endTime ?? "14:00");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, dateIso]);
+
   if (!dateIso) return null;
+
+  function handleSaveOverride() {
+    onSaveOverride({ startTime: draftStart, endTime: draftEnd });
+    setEditingOverride(false);
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -58,6 +92,74 @@ export function DayShiftSheet({
             )}
           </ScrollView>
 
+          {canOverride ? (
+            <View style={styles.overrideBox}>
+              {!editingOverride ? (
+                <View style={styles.overrideRow}>
+                  <Text style={styles.overrideText}>
+                    {override
+                      ? `Orario di oggi: ${override.startTime}-${override.endTime} (personalizzato)`
+                      : `Orario standard: ${currentShiftType!.startTime}-${currentShiftType!.endTime}`}
+                  </Text>
+                  <TouchableOpacity onPress={() => setEditingOverride(true)}>
+                    <Text style={styles.overrideLink}>Modifica orario di oggi</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.overrideHint}>
+                    Solo per questo giorno: es. esci un'ora prima o entri un'ora dopo. Il tipo di turno resta{" "}
+                    {currentShiftType!.label}.
+                  </Text>
+                  <View style={styles.timeRow}>
+                    <TouchableOpacity style={styles.timeButton} onPress={() => setActivePicker("start")}>
+                      <Text style={styles.timeButtonLabel}>Inizio</Text>
+                      <Text style={styles.timeButtonValue}>{draftStart}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.timeButton} onPress={() => setActivePicker("end")}>
+                      <Text style={styles.timeButtonLabel}>Fine</Text>
+                      <Text style={styles.timeButtonValue}>{draftEnd}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {activePicker ? (
+                    <DateTimePicker
+                      value={timeStringToDate(activePicker === "start" ? draftStart : draftEnd)}
+                      mode="time"
+                      is24Hour
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      onChange={(_event, date) => {
+                        if (Platform.OS === "android") setActivePicker(null);
+                        if (!date) return;
+                        const value = dateToTimeString(date);
+                        if (activePicker === "start") setDraftStart(value);
+                        else setDraftEnd(value);
+                      }}
+                    />
+                  ) : null}
+
+                  <TouchableOpacity style={styles.overrideSaveButton} onPress={handleSaveOverride}>
+                    <Text style={styles.overrideSaveButtonText}>Salva orario personalizzato</Text>
+                  </TouchableOpacity>
+                  {override ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        onClearOverride();
+                        setEditingOverride(false);
+                      }}
+                    >
+                      <Text style={styles.overrideResetText}>Ripristina orario standard</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => setEditingOverride(false)}>
+                      <Text style={styles.overrideResetText}>Annulla</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          ) : null}
+
           <TouchableOpacity style={styles.secondaryButton} onPress={onCreateShiftType}>
             <Text style={styles.secondaryButtonText}>+ Nuovo tipo di turno</Text>
           </TouchableOpacity>
@@ -84,7 +186,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
     padding: theme.spacing.lg,
-    maxHeight: "75%",
+    maxHeight: "85%",
   },
   title: { color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: theme.spacing.md, textTransform: "capitalize" },
   list: { marginBottom: theme.spacing.sm },
@@ -100,6 +202,35 @@ const styles = StyleSheet.create({
   optionSelected: { backgroundColor: theme.colors.surfaceAlt },
   dot: { width: 14, height: 14, borderRadius: 7 },
   optionText: { color: theme.colors.text, fontSize: 15 },
+  overrideBox: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  overrideRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
+  overrideText: { color: theme.colors.text, fontSize: 13, flex: 1 },
+  overrideLink: { color: theme.colors.primary, fontWeight: "600", fontSize: 13 },
+  overrideHint: { color: theme.colors.textMuted, fontSize: 12 },
+  timeRow: { flexDirection: "row", gap: theme.spacing.sm },
+  timeButton: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.sm,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  timeButtonLabel: { color: theme.colors.textMuted, fontSize: 11 },
+  timeButtonValue: { color: theme.colors.text, fontSize: 15, fontWeight: "700" },
+  overrideSaveButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.sm,
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+  },
+  overrideSaveButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  overrideResetText: { color: theme.colors.danger, fontSize: 12, fontWeight: "600", textAlign: "center" },
   secondaryButton: { paddingVertical: theme.spacing.sm, alignItems: "center" },
   secondaryButtonText: { color: theme.colors.primary, fontWeight: "600" },
   removeButton: { paddingVertical: theme.spacing.sm, alignItems: "center" },

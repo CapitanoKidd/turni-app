@@ -5,11 +5,11 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { DayShiftSheet } from "../../components/DayShiftSheet";
 import { MonthCalendar } from "../../components/MonthCalendar";
 import { MonthSummary } from "../../components/MonthSummary";
-import { ShiftLegend } from "../../components/ShiftLegend";
-import { cancelAlarmsForDates, scheduleAlarmsForEntries } from "../../lib/notifications";
+import { cancelAlarmsForDates, ensureNotificationPermission, scheduleAlarmsForEntries } from "../../lib/notifications";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import type { AppSettings, CalendarEntries, ShiftType } from "../../lib/types";
+import { useTutorialTarget } from "../../lib/tutorial";
+import type { CalendarEntries, CalendarOverrides, DayShiftOverride, ShiftType } from "../../lib/types";
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -21,16 +21,16 @@ export default function CalendarScreen() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [entries, setEntries] = useState<CalendarEntries>({});
+  const [overrides, setOverrides] = useState<CalendarOverrides>({});
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    Promise.all([storage.getCalendarEntries(), storage.getShiftTypes(), storage.getSettings()]).then(
-      ([e, s, cfg]) => {
+    Promise.all([storage.getCalendarEntries(), storage.getCalendarOverrides(), storage.getShiftTypes()]).then(
+      ([e, o, s]) => {
         setEntries(e);
+        setOverrides(o);
         setShiftTypes(s);
-        setSettings(cfg);
       },
     );
   }, []);
@@ -54,6 +54,15 @@ export default function CalendarScreen() {
     setEntries(next);
     await storage.saveCalendarEntries(next);
 
+    // Un orario personalizzato ha senso solo per il turno per cui e' stato
+    // impostato: cambiare o rimuovere il turno del giorno lo rende privo di
+    // significato, quindi va tolto.
+    if (overrides[selectedDate]) {
+      const { [selectedDate]: _removed, ...restOverrides } = overrides;
+      setOverrides(restOverrides);
+      await storage.saveCalendarOverrides(restOverrides);
+    }
+
     // Se questo giorno era rimasto "in sospeso" (conosciamo il disegno della
     // cella ma non il suo significato), l'assegnazione manuale dell'utente e'
     // proprio la risposta che mancava: la impariamo, cosi' il mese prossimo
@@ -69,18 +78,35 @@ export default function CalendarScreen() {
       }
     }
 
-    if (settings?.autoAlarmEnabled) {
-      if (shiftTypeId) {
-        await scheduleAlarmsForEntries({ [selectedDate]: shiftTypeId }, shiftTypes);
+    // La sveglia e' un attributo del tipo di turno: se il turno scelto ne
+    // prevede una, si programma sempre, senza bisogno di un interruttore
+    // globale.
+    if (shiftTypeId) {
+      const shiftType = shiftTypes.find((s) => s.id === shiftTypeId);
+      if (shiftType?.alarmEnabled) {
+        const granted = await ensureNotificationPermission();
+        if (granted) await scheduleAlarmsForEntries({ [selectedDate]: shiftTypeId }, shiftTypes);
       } else {
         await cancelAlarmsForDates([selectedDate]);
       }
+    } else {
+      await cancelAlarmsForDates([selectedDate]);
     }
     setSelectedDate(null);
   }
 
+  async function applyOverride(override: DayShiftOverride | null) {
+    if (!selectedDate) return;
+    const next = { ...overrides };
+    if (override) next[selectedDate] = override;
+    else delete next[selectedDate];
+    setOverrides(next);
+    await storage.saveCalendarOverrides(next);
+  }
+
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const hasShifts = Object.keys(entries).some((date) => date.startsWith(monthPrefix));
+  const calendarOverviewTarget = useTutorialTarget("calendar-overview");
 
   function handleResetCalendar() {
     const datesThisMonth = Object.keys(entries).filter((date) => date.startsWith(monthPrefix));
@@ -99,6 +125,12 @@ export default function CalendarScreen() {
             for (const date of datesThisMonth) delete next[date];
             setEntries(next);
             await storage.saveCalendarEntries(next);
+
+            const nextOverrides = { ...overrides };
+            for (const date of datesThisMonth) delete nextOverrides[date];
+            setOverrides(nextOverrides);
+            await storage.saveCalendarOverrides(nextOverrides);
+
             await cancelAlarmsForDates(datesThisMonth);
           },
         },
@@ -129,23 +161,23 @@ export default function CalendarScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <View ref={calendarOverviewTarget} style={{ gap: theme.spacing.md }}>
           <MonthCalendar
             year={year}
             month1To12={month}
             entries={entries}
+            overrides={overrides}
             shiftTypes={shiftTypes}
             onDayPress={setSelectedDate}
           />
           {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
           <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
-          {settings?.legendVisible ? <ShiftLegend shiftTypes={shiftTypes} /> : null}
           {hasShifts ? (
             <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
               <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
             </TouchableOpacity>
           ) : null}
-        </>
+        </View>
       )}
 
       <DayShiftSheet
@@ -153,9 +185,12 @@ export default function CalendarScreen() {
         dateIso={selectedDate}
         shiftTypes={shiftTypes}
         currentShiftTypeId={selectedDate ? entries[selectedDate] : undefined}
+        override={selectedDate ? overrides[selectedDate] : undefined}
         onClose={() => setSelectedDate(null)}
         onSelectShiftType={(id) => applyDayChange(id)}
         onRemoveShift={() => applyDayChange(null)}
+        onSaveOverride={applyOverride}
+        onClearOverride={() => applyOverride(null)}
         onCreateShiftType={() => router.push("/shift-type-editor")}
       />
     </ScrollView>

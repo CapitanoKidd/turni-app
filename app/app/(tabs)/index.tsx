@@ -8,7 +8,10 @@ import { analyzeShiftFile, type PickedFile } from "../../lib/api";
 import { setDebugImages } from "../../lib/debugImageStore";
 import { storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
-import type { AnalyzeResponse } from "../../lib/types";
+import type { AnalyzeResponse, ShiftType } from "../../lib/types";
+
+/** Caricamenti (foto/PDF/Word) concessi per giorno a un dispositivo: protezione contro l'uso eccessivo dell'analisi, non contro l'abuso deliberato (vedi storage.consumeDailyUpload). */
+const DAILY_UPLOAD_LIMIT = 4;
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -22,14 +25,16 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState("");
   const [debugMode, setDebugMode] = useState(false);
+  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [pendingFile, setPendingFile] = useState<PickedFile | null>(null);
   const [candidateNames, setCandidateNames] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      storage.getSettings().then((s) => {
+      Promise.all([storage.getSettings(), storage.getShiftTypes()]).then(([s, types]) => {
         setUserName(s.userName);
         setDebugMode(s.debugMode);
+        setShiftTypes(types);
       });
     }, []),
   );
@@ -47,6 +52,15 @@ export default function HomeScreen() {
   }
 
   async function runAnalysis(file: PickedFile, staffName?: string) {
+    const allowed = await storage.consumeDailyUpload(DAILY_UPLOAD_LIMIT);
+    if (!allowed) {
+      Alert.alert(
+        "Limite giornaliero raggiunto",
+        `Hai già caricato ${DAILY_UPLOAD_LIMIT} documenti oggi. Riprova domani.`,
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const knownCells = await storage.getCellCodeMemory();
@@ -112,6 +126,32 @@ export default function HomeScreen() {
   }
 
   async function handleFilePicked(file: PickedFile) {
+    // Un caricamento senza nome utente non sa a quale riga abbinarsi, e
+    // senza nessun turno definito non c'e' niente a cui mappare i codici
+    // letti: in entrambi i casi il risultato sarebbe comunque inutile,
+    // meglio chiederlo prima di consumare un'analisi.
+    if (!userName.trim()) {
+      Alert.alert(
+        "Manca il tuo nome",
+        "Serve il tuo nome prima di caricare un documento, altrimenti non sappiamo quale riga cercare. Vuoi inserirlo ora?",
+        [
+          { text: "Non ora", style: "cancel" },
+          { text: "Vai alle Impostazioni", onPress: () => router.push("/(tabs)/settings") },
+        ],
+      );
+      return;
+    }
+    if (shiftTypes.length === 0) {
+      Alert.alert(
+        "Nessun turno definito",
+        "Crea almeno un tipo di turno (es. Mattina, Pomeriggio, Notte) prima di caricare un documento, altrimenti i codici trovati non avrebbero a cosa corrispondere. Vuoi crearlo ora?",
+        [
+          { text: "Non ora", style: "cancel" },
+          { text: "Vai alle Impostazioni", onPress: () => router.push("/(tabs)/settings") },
+        ],
+      );
+      return;
+    }
     await runAnalysis(file, userName || undefined);
   }
 

@@ -221,7 +221,12 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
     });
   } catch (error) {
     if (error instanceof ServiceUnavailableError) {
-      res.status(503).json({ success: false, error: error.message });
+      // error.message qui e' un dettaglio per chi gestisce il server (es.
+      // "manca AZURE_DOCINTEL_KEY"): utile nei log, ma non da mostrare a chi
+      // ha solo caricato un documento e non puo' farci nulla.
+      // eslint-disable-next-line no-console
+      console.error("Servizio OCR non disponibile:", error.message);
+      res.status(503).json({ success: false, error: "Servizio di analisi non disponibile al momento. Riprova più tardi." });
       return;
     }
     // eslint-disable-next-line no-console

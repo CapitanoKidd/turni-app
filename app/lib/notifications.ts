@@ -91,6 +91,25 @@ export async function cancelAlarmsForDates(dates: string[]): Promise<void> {
   await cancelScheduled(dates);
 }
 
+/**
+ * Riprogramma le sveglie di tutti i giorni gia' assegnati a un tipo di
+ * turno, dopo che il suo orario/attivazione sveglia e' cambiato altrove
+ * (es. dall'icona sveglia in "Gestisci turni" o dall'editor del turno):
+ * senza questo, cambiare l'orario di un turno gia' usato in calendario
+ * lascerebbe le notifiche gia' programmate con l'orario vecchio.
+ */
+export async function rescheduleAlarmsForShiftType(
+  shiftTypeId: string,
+  shiftTypes: ShiftType[],
+): Promise<void> {
+  const entries = await storage.getCalendarEntries();
+  const affected = Object.fromEntries(
+    Object.entries(entries).filter(([, id]) => id === shiftTypeId),
+  );
+  if (Object.keys(affected).length === 0) return;
+  await scheduleAlarmsForEntries(affected, shiftTypes);
+}
+
 export async function cancelAllAlarms(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
   await storage.saveScheduledNotifications({});

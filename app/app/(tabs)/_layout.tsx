@@ -1,6 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { View } from "react-native";
 import { theme } from "../../lib/theme";
+import { useTutorialTarget } from "../../lib/tutorial";
+
+/** Avvolge l'icona di un tab in un target del tutorial guidato, senza cambiare come la barra dei tab la disegna. */
+function TutorialTabIcon({ id, children }: { id: "tab-settings" | "tab-calendar"; children: React.ReactNode }) {
+  const ref = useTutorialTarget(id);
+  return <View ref={ref}>{children}</View>;
+}
 
 export default function TabsLayout() {
   return (
@@ -25,14 +33,22 @@ export default function TabsLayout() {
         name="calendar"
         options={{
           title: "Calendario",
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <TutorialTabIcon id="tab-calendar">
+              <Ionicons name="calendar" size={size} color={color} />
+            </TutorialTabIcon>
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Impostazioni",
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <TutorialTabIcon id="tab-settings">
+              <Ionicons name="settings" size={size} color={color} />
+            </TutorialTabIcon>
+          ),
         }}
       />
     </Tabs>

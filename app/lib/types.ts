@@ -21,11 +21,22 @@ export function isDayOff(shiftType: ShiftType): boolean {
 /** Turno assegnato a un giorno specifico. Chiave della mappa: "YYYY-MM-DD". */
 export type CalendarEntries = Record<string, string>; // date -> shiftTypeId
 
+/**
+ * Scostamento eccezionale dall'orario standard di UN giorno: il tipo di
+ * turno resta lo stesso (stesso colore, stessa sveglia), cambia solo
+ * l'orario di quel giorno (es. "oggi esco un'ora prima").
+ */
+export interface DayShiftOverride {
+  startTime: string;
+  endTime: string;
+}
+
+/** Orari personalizzati per giorno. Chiave della mappa: "YYYY-MM-DD". */
+export type CalendarOverrides = Record<string, DayShiftOverride>;
+
 export interface AppSettings {
   userName: string;
-  autoAlarmEnabled: boolean;
-  legendVisible: boolean;
-  /** Mostra, dopo ogni caricamento, cosa ha rilevato davvero il motore di analisi (per capire perche' un turno manca). */
+  /** Mostra, dopo ogni caricamento, cosa ha rilevato davvero il motore di analisi (per capire perche' un turno manca). Visibile in Impostazioni solo per l'utente "Renato Palumbo". */
   debugMode: boolean;
 }
 

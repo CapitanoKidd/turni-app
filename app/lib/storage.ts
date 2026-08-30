@@ -1,5 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { AppSettings, CalendarEntries, CellCodeMemory, PendingCellFingerprints, ScheduledNotifications, ShiftType } from "./types";
+import type {
+  AppSettings,
+  CalendarEntries,
+  CalendarOverrides,
+  CellCodeMemory,
+  PendingCellFingerprints,
+  ScheduledNotifications,
+  ShiftType,
+} from "./types";
 
 /**
  * Tutto lo stato dell'app vive solo sul dispositivo (nessun backend/DB):
@@ -9,18 +17,29 @@ import type { AppSettings, CalendarEntries, CellCodeMemory, PendingCellFingerpri
 const KEYS = {
   shiftTypes: "turni.shiftTypes",
   calendarEntries: "turni.calendarEntries",
+  calendarOverrides: "turni.calendarOverrides",
   settings: "turni.settings",
   scheduledNotifications: "turni.scheduledNotifications",
   cellCodeMemory: "turni.cellCodeMemory",
   pendingCells: "turni.pendingCells",
+  dailyUploadUsage: "turni.dailyUploadUsage",
+  tutorialCompleted: "turni.tutorialCompleted",
 } as const;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   userName: "",
-  autoAlarmEnabled: false,
-  legendVisible: true,
   debugMode: false,
 };
+
+interface DailyUploadUsage {
+  date: string; // YYYY-MM-DD locale, per capire quando resettare il conteggio
+  count: number;
+}
+
+function todayIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
   const raw = await AsyncStorage.getItem(key);
@@ -56,9 +75,34 @@ export const storage = {
   getCalendarEntries: () => readJson<CalendarEntries>(KEYS.calendarEntries, {}),
   saveCalendarEntries: (entries: CalendarEntries) => writeJson(KEYS.calendarEntries, entries),
 
+  /** Orari personalizzati per singolo giorno ("modifica singolo turno"), separati dai turni assegnati. */
+  getCalendarOverrides: () => readJson<CalendarOverrides>(KEYS.calendarOverrides, {}),
+  saveCalendarOverrides: (overrides: CalendarOverrides) => writeJson(KEYS.calendarOverrides, overrides),
+
   getSettings: () => readJson<AppSettings>(KEYS.settings, DEFAULT_SETTINGS),
   saveSettings: (settings: AppSettings) => writeJson(KEYS.settings, settings),
 
   getScheduledNotifications: () => readJson<ScheduledNotifications>(KEYS.scheduledNotifications, {}),
   saveScheduledNotifications: (value: ScheduledNotifications) => writeJson(KEYS.scheduledNotifications, value),
+
+  /**
+   * Consuma un caricamento dal limite giornaliero: incrementa il contatore
+   * (azzerandolo se il giorno e' cambiato) e restituisce true se era sotto
+   * il limite, false se il limite era gia' raggiunto (in tal caso NON
+   * incrementa, cosi' il contatore non supera mai il limite mostrato).
+   * Protezione lato dispositivo, non lato server: aggirabile da chi
+   * manomette l'app, ma e' l'unica misura ragionevole senza un account.
+   */
+  consumeDailyUpload: async (limit: number): Promise<boolean> => {
+    const today = todayIso();
+    const usage = await readJson<DailyUploadUsage>(KEYS.dailyUploadUsage, { date: today, count: 0 });
+    const current = usage.date === today ? usage.count : 0;
+    if (current >= limit) return false;
+    await writeJson<DailyUploadUsage>(KEYS.dailyUploadUsage, { date: today, count: current + 1 });
+    return true;
+  },
+
+  /** true dopo che l'utente ha completato (o saltato) il tutorial guidato alla prima apertura. */
+  getTutorialCompleted: () => readJson<boolean>(KEYS.tutorialCompleted, false),
+  setTutorialCompleted: (value: boolean) => writeJson(KEYS.tutorialCompleted, value),
 };

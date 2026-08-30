@@ -1,14 +1,19 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { theme } from "../lib/theme";
-import { isDayOff, type CalendarEntries, type ShiftType } from "../lib/types";
+import { isDayOff, type CalendarEntries, type CalendarOverrides, type ShiftType } from "../lib/types";
 
 const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
+const COLUMNS = 7;
+/** Spazio fisso fra le celle, in pixel: la larghezza di ogni cella si calcola sottraendo questi spazi dalla larghezza misurata del contenitore, cosi' 7 colonne ci stanno sempre per costruzione (mai un arrotondamento percentuale che ne fa entrare solo 6). */
+const CELL_GAP = 4;
 
 interface MonthCalendarProps {
   year: number;
   month1To12: number;
   entries: CalendarEntries;
   shiftTypes: ShiftType[];
+  overrides?: CalendarOverrides;
   onDayPress: (dateIso: string) => void;
 }
 
@@ -23,7 +28,9 @@ function mondayIndex(jsWeekday: number): number {
   return (jsWeekday + 6) % 7;
 }
 
-export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPress }: MonthCalendarProps) {
+export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides, onDayPress }: MonthCalendarProps) {
+  const [containerWidth, setContainerWidth] = useState(0);
+
   const shiftTypeById = new Map(shiftTypes.map((s) => [s.id, s]));
   const totalDays = new Date(year, month1To12, 0).getDate();
   const firstWeekday = mondayIndex(new Date(year, month1To12 - 1, 1).getDay());
@@ -34,69 +41,77 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, onDayPres
     ...Array.from({ length: firstWeekday }, () => null),
     ...Array.from({ length: totalDays }, (_, i) => ({ day: i + 1, iso: toIso(year, month1To12, i + 1) })),
   ];
-  while (cells.length % 7 !== 0) cells.push(null);
+  while (cells.length % COLUMNS !== 0) cells.push(null);
+
+  function handleLayout(e: LayoutChangeEvent) {
+    setContainerWidth(e.nativeEvent.layout.width);
+  }
+
+  // Finche' non conosciamo la larghezza vera non disegniamo celle: prima
+  // del primo onLayout avrebbero larghezza 0 e si vedrebbe un lampo vuoto.
+  const cellSize = containerWidth > 0 ? (containerWidth - CELL_GAP * (COLUMNS - 1)) / COLUMNS : 0;
 
   return (
-    <View>
-      <View style={styles.weekdayRow}>
+    <View onLayout={handleLayout}>
+      <View style={[styles.weekdayRow, { gap: CELL_GAP }]}>
         {WEEKDAY_LABELS.map((label, i) => (
-          <Text key={i} style={styles.weekdayLabel}>
+          <Text key={i} style={[styles.weekdayLabel, { width: cellSize }]}>
             {label}
           </Text>
         ))}
       </View>
 
-      <View style={styles.grid}>
-        {cells.map((cell, index) => {
-          if (!cell) return <View key={index} style={styles.cell} />;
+      {cellSize > 0 ? (
+        <View style={[styles.grid, { gap: CELL_GAP }]}>
+          {cells.map((cell, index) => {
+            if (!cell) return <View key={index} style={{ width: cellSize, height: cellSize }} />;
 
-          const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
-          const isToday = cell.iso === todayIso;
-          const isWorkingShift = shiftType && !isDayOff(shiftType);
+            const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
+            const isToday = cell.iso === todayIso;
+            const isWorkingShift = shiftType && !isDayOff(shiftType);
+            const hasOverride = Boolean(overrides?.[cell.iso]);
 
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.cell,
-                styles.dayCell,
-                isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
-                shiftType && isDayOff(shiftType) && styles.restDayCell,
-                isToday && styles.todayBorder,
-              ]}
-              onPress={() => onDayPress(cell.iso)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dayNumber, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
-              {shiftType ? (
-                <Text
-                  numberOfLines={1}
-                  style={[styles.shiftLabel, !isWorkingShift && styles.shiftLabelMuted]}
-                >
-                  {shiftType.label}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dayCell,
+                  { width: cellSize, height: cellSize },
+                  isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
+                  shiftType && isDayOff(shiftType) && styles.restDayCell,
+                  isToday && styles.todayBorder,
+                ]}
+                onPress={() => onDayPress(cell.iso)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.dayNumber, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
+                {shiftType ? (
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.shiftLabel, !isWorkingShift && styles.shiftLabelMuted]}
+                  >
+                    {shiftType.label}
+                  </Text>
+                ) : null}
+                {hasOverride ? <View style={styles.overrideDot} /> : null}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-const CELL_SIZE = "13.8%";
-
 const styles = StyleSheet.create({
   weekdayRow: { flexDirection: "row", marginBottom: theme.spacing.xs },
   weekdayLabel: {
-    width: CELL_SIZE,
     textAlign: "center",
     color: theme.colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
   },
   grid: { flexDirection: "row", flexWrap: "wrap" },
-  cell: { width: CELL_SIZE, aspectRatio: 1, margin: "0.35%" },
   dayCell: {
     borderRadius: theme.radius.sm,
     alignItems: "center",
@@ -112,4 +127,14 @@ const styles = StyleSheet.create({
   dayNumberOnShift: { color: "#0B1220" },
   shiftLabel: { color: "#0B1220", fontSize: 10, fontWeight: "700", maxWidth: "90%" },
   shiftLabelMuted: { color: theme.colors.textMuted },
+  // Piccolo indicatore per i giorni con un orario personalizzato ("modifica singolo turno"), visibile a colpo d'occhio senza aprire il giorno.
+  overrideDot: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.text,
+  },
 });

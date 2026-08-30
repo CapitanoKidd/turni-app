@@ -2,13 +2,15 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AlarmPicker } from "../components/AlarmPicker";
 import { generateId } from "../lib/id";
+import { rescheduleAlarmsForShiftType } from "../lib/notifications";
 import { storage } from "../lib/storage";
 import { dateToTimeString, timeStringToDate } from "../lib/time";
-import { nextShiftColor, theme } from "../lib/theme";
+import { nextShiftColor, SHIFT_COLOR_PALETTE, theme } from "../lib/theme";
 import type { ShiftType } from "../lib/types";
 
-type ActivePicker = "start" | "end" | "alarm" | null;
+type ActivePicker = "start" | "end" | null;
 
 export default function ShiftTypeEditorScreen() {
   const params = useLocalSearchParams<{ id?: string; prefillLabel?: string }>();
@@ -21,17 +23,17 @@ export default function ShiftTypeEditorScreen() {
   const [endTime, setEndTime] = useState("14:00");
   const [alarmEnabled, setAlarmEnabled] = useState(false);
   const [alarmTime, setAlarmTime] = useState("05:15");
+  const [color, setColor] = useState(SHIFT_COLOR_PALETTE[0]);
   const [activePicker, setActivePicker] = useState<ActivePicker>(null);
-  const [globalAlarmEnabled, setGlobalAlarmEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const isEditing = Boolean(params.id);
 
   useEffect(() => {
     (async () => {
-      const [shiftTypes, settings] = await Promise.all([storage.getShiftTypes(), storage.getSettings()]);
+      const shiftTypes = await storage.getShiftTypes();
       setAllShiftTypes(shiftTypes);
-      setGlobalAlarmEnabled(settings.autoAlarmEnabled);
+      setColor(nextShiftColor(shiftTypes.length)); // ripiego per un turno nuovo, sovrascritto sotto se si sta modificando uno esistente
 
       if (params.id) {
         const existing = shiftTypes.find((s) => s.id === params.id);
@@ -43,6 +45,7 @@ export default function ShiftTypeEditorScreen() {
           setEndTime(existing.endTime ?? "14:00");
           setAlarmEnabled(existing.alarmEnabled);
           setAlarmTime(existing.alarmTime ?? "05:15");
+          setColor(existing.color);
         }
       }
       setLoaded(true);
@@ -69,7 +72,7 @@ export default function ShiftTypeEditorScreen() {
       isVacation,
       startTime: dayOff ? undefined : startTime,
       endTime: dayOff ? undefined : endTime,
-      color: existingIndex >= 0 ? allShiftTypes[existingIndex].color : nextShiftColor(allShiftTypes.length),
+      color,
       alarmEnabled: dayOff ? false : alarmEnabled,
       alarmTime: !dayOff && alarmEnabled ? alarmTime : undefined,
     };
@@ -80,6 +83,12 @@ export default function ShiftTypeEditorScreen() {
         : [...allShiftTypes, shiftType];
 
     await storage.saveShiftTypes(next);
+    // L'orario/attivazione sveglia puo' essere cambiato per un turno gia'
+    // assegnato a giorni del calendario: senza questo, le notifiche gia'
+    // programmate resterebbero con l'orario vecchio.
+    if (existingIndex >= 0) {
+      await rescheduleAlarmsForShiftType(shiftType.id, next);
+    }
     router.back();
   }
 
@@ -115,6 +124,23 @@ export default function ShiftTypeEditorScreen() {
         placeholderTextColor={theme.colors.textMuted}
       />
 
+      <View>
+        <Text style={styles.fieldLabel}>Colore</Text>
+        <View style={styles.colorRow}>
+          {SHIFT_COLOR_PALETTE.map((paletteColor) => (
+            <TouchableOpacity
+              key={paletteColor}
+              style={[
+                styles.colorSwatch,
+                { backgroundColor: paletteColor },
+                color === paletteColor && styles.colorSwatchSelected,
+              ]}
+              onPress={() => setColor(paletteColor)}
+            />
+          ))}
+        </View>
+      </View>
+
       <View style={styles.switchRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>Riposo</Text>
@@ -148,27 +174,13 @@ export default function ShiftTypeEditorScreen() {
           <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
           <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />
 
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Sveglia per questo turno</Text>
-              {!globalAlarmEnabled ? (
-                <Text style={styles.hint}>La sveglia automatica e' disattivata nelle Impostazioni.</Text>
-              ) : null}
-            </View>
-            <Switch value={alarmEnabled} onValueChange={setAlarmEnabled} />
-          </View>
-
-          {alarmEnabled ? (
-            <TimeRow label="Orario sveglia" value={alarmTime} onPress={() => setActivePicker("alarm")} />
-          ) : null}
+          <AlarmPicker enabled={alarmEnabled} time={alarmTime} onToggleEnabled={setAlarmEnabled} onChangeTime={setAlarmTime} />
         </>
       ) : null}
 
       {activePicker ? (
         <DateTimePicker
-          value={timeStringToDate(
-            activePicker === "start" ? startTime : activePicker === "end" ? endTime : alarmTime,
-          )}
+          value={timeStringToDate(activePicker === "start" ? startTime : endTime)}
           mode="time"
           is24Hour
           display={Platform.OS === "ios" ? "spinner" : "default"}
@@ -177,8 +189,7 @@ export default function ShiftTypeEditorScreen() {
             if (!date) return;
             const value = dateToTimeString(date);
             if (activePicker === "start") setStartTime(value);
-            else if (activePicker === "end") setEndTime(value);
-            else setAlarmTime(value);
+            else setEndTime(value);
           }}
         />
       ) : null}
@@ -227,6 +238,9 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   timeButtonText: { color: theme.colors.text, fontSize: 16, fontWeight: "600" },
+  colorRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
+  colorSwatch: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, borderColor: "transparent" },
+  colorSwatchSelected: { borderColor: theme.colors.text },
   switchRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
   saveButton: {
     backgroundColor: theme.colors.primary,

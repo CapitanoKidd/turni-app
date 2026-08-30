@@ -74,21 +74,21 @@ export default function ImportReviewScreen() {
       }
       await storage.saveCalendarEntries({ ...existingEntries, ...newEntries });
 
-      const settings = await storage.getSettings();
-      if (settings.autoAlarmEnabled) {
-        const hasAnyAlarm = Object.values(newEntries).some((id) => {
-          const shiftType = shiftTypes.find((s) => s.id === id);
-          return shiftType?.alarmEnabled;
-        });
-        if (hasAnyAlarm) {
-          const proceed = await confirmAlarms();
-          if (proceed) {
-            const granted = await ensureNotificationPermission();
-            if (granted) {
-              await scheduleAlarmsForEntries(newEntries, shiftTypes);
-            } else {
-              Alert.alert("Permesso negato", "Senza il permesso notifiche le sveglie non possono essere impostate.");
-            }
+      // La sveglia e' un attributo del tipo di turno: se qualcuno dei turni
+      // importati ne prevede una, si offre di programmarla, senza bisogno
+      // di un interruttore globale attivo.
+      const hasAnyAlarm = Object.values(newEntries).some((id) => {
+        const shiftType = shiftTypes.find((s) => s.id === id);
+        return shiftType?.alarmEnabled;
+      });
+      if (hasAnyAlarm) {
+        const proceed = await confirmAlarms();
+        if (proceed) {
+          const granted = await ensureNotificationPermission();
+          if (granted) {
+            await scheduleAlarmsForEntries(newEntries, shiftTypes);
+          } else {
+            Alert.alert("Permesso negato", "Senza il permesso notifiche le sveglie non possono essere impostate.");
           }
         }
       }
