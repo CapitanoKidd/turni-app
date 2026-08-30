@@ -71,6 +71,22 @@ function AppTooltip({ labels }: TooltipProps) {
   );
 }
 
+/**
+ * Il fumetto NON segue piu' la posizione dell'elemento evidenziato: e' fisso
+ * appena sopra la barra dei tab, sempre nello stesso punto dello schermo.
+ *
+ * Motivo: la libreria calcola dove metterlo (sopra/sotto il target) misurando
+ * la posizione dell'elemento UNA volta, quando lo step si attiva — se dopo
+ * quel momento lo schermo scorre (una ScrollView lunga, es. tanti turni in
+ * "Gestisci turni") o cambia altezza (la tastiera che si apre sul campo
+ * nome), quella misura non e' piu' valida e il fumetto puo' apparire fuori
+ * schermo, tagliato. Un punto fisso, sempre sopra la barra dei tab, elimina
+ * il problema alla radice invece di rincorrere ogni singolo caso — e per lo
+ * stesso motivo l'animazione di spostamento del riquadro evidenziato e'
+ * disattivata (era comunque lenta e a scatti): il riquadro compare subito
+ * dove serve, senza intermezzi da inseguire.
+ */
+
 /** Nessun elemento visivo: solo la logica che avvia il tour e salva il completamento. */
 function TutorialController() {
   const { start, copilotEvents } = useCopilot();
@@ -124,10 +140,13 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
   return (
     <CopilotProvider
       overlay="view"
-      animated
+      animated={false}
+      animationDuration={0}
+      arrowSize={0}
+      stepNumberComponent={() => null}
       stopOnOutsideClick={false}
       backdropColor="rgba(4,8,16,0.82)"
-      tooltipStyle={styles.tooltipWrapper}
+      tooltipStyle={styles.tooltipPosition}
       tooltipComponent={AppTooltip}
       labels={{ skip: "Salta tutorial", previous: "Indietro", next: "Avanti", finish: "Ho capito, inizia!" }}
     >
@@ -140,13 +159,27 @@ export function TutorialProvider({ children }: PropsWithChildren): ReactNode {
 export { CopilotStep };
 
 const styles = StyleSheet.create({
-  tooltipWrapper: { backgroundColor: "transparent", padding: 0 },
+  // Sovrascrive il posizionamento che la libreria calcolerebbe in base al
+  // target (vedi il commento sopra AppTooltip): sempre alla stessa distanza
+  // dal fondo dello schermo, con margini laterali fissi, mai legato a "sopra"
+  // o "sotto" l'elemento evidenziato. "top"/"maxWidth" espliciti a undefined
+  // annullano i valori che la libreria avrebbe altrimenti impostato lei
+  // stessa in base alla misura del target.
+  tooltipPosition: {
+    position: "absolute",
+    top: undefined,
+    bottom: 96,
+    left: 16,
+    right: 16,
+    maxWidth: undefined,
+    backgroundColor: "transparent",
+    padding: 0,
+  },
   tooltip: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     gap: theme.spacing.sm,
-    maxWidth: 320,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
