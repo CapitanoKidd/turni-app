@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AlarmPicker } from "../../components/AlarmPicker";
 import { withAlpha } from "../../lib/color";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
@@ -114,7 +115,8 @@ export default function SettingsScreen() {
   const restartTutorial = useRestartTutorial();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={{ gap: 2 }}>
         <Text style={styles.pageTitle}>Impostazioni</Text>
         <Text style={styles.versionCaption}>Turni · versione {APP_VERSION}</Text>
@@ -264,7 +266,8 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -296,6 +299,7 @@ function Row({
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: theme.colors.background },
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, gap: theme.spacing.lg, paddingBottom: theme.spacing.xl },
   section: {

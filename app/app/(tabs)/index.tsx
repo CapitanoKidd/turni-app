@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StaffPickerSheet } from "../../components/StaffPickerSheet";
 import { UploadButton } from "../../components/UploadButton";
 import { analyzeShiftFile, type PickedFile } from "../../lib/api";
@@ -219,7 +220,8 @@ export default function HomeScreen() {
   const todayLabel = now.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TutorialDim style={{ gap: theme.spacing.lg }}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
@@ -304,11 +306,13 @@ export default function HomeScreen() {
           setPendingFile(null);
         }}
       />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: theme.colors.background },
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },

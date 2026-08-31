@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { DayShiftSheet } from "../../components/DayShiftSheet";
 import { MonthCalendar } from "../../components/MonthCalendar";
 import { MonthSummary } from "../../components/MonthSummary";
@@ -138,7 +139,8 @@ export default function CalendarScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TutorialDim>
         <Text style={styles.pageTitle}>Calendario</Text>
       </TutorialDim>
@@ -212,11 +214,13 @@ export default function CalendarScreen() {
         onClearOverride={() => applyOverride(null)}
         onCreateShiftType={() => router.push("/shift-type-editor")}
       />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: theme.colors.background },
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
   pageTitle: { ...theme.typography.title, color: theme.colors.text },
