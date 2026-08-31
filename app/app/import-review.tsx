@@ -233,9 +233,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.dangerMuted,
   },
-  unmappedCode: { color: theme.colors.text, fontWeight: "700" },
+  unmappedCode: { color: theme.colors.text, fontFamily: theme.font.bold },
   unmappedActionRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  unmappedAction: { color: theme.colors.primary, fontWeight: "600" },
+  unmappedAction: { color: theme.colors.primary, fontFamily: theme.font.semiBold },
   previewRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -247,9 +247,9 @@ const styles = StyleSheet.create({
   previewDate: { color: theme.colors.textMuted, fontSize: 13, textTransform: "capitalize" },
   previewShift: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  previewCode: { color: theme.colors.text, fontWeight: "600" },
+  previewCode: { color: theme.colors.text, fontFamily: theme.font.semiBold },
   previewCodePending: { color: theme.colors.danger },
-  previewCodeBlank: { color: theme.colors.textMuted, fontStyle: "italic", fontWeight: "400" },
+  previewCodeBlank: { color: theme.colors.textMuted, fontStyle: "italic", fontFamily: theme.font.regular },
   importButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.md,
@@ -259,5 +259,5 @@ const styles = StyleSheet.create({
     shadowColor: theme.colors.primary,
   },
   importButtonDisabled: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0, elevation: 0 },
-  importButtonText: { color: theme.colors.primaryText, fontWeight: "700", fontSize: 16 },
+  importButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold, fontSize: 16 },
 });

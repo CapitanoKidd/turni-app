@@ -71,5 +71,5 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     alignItems: "center",
   },
-  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontWeight: "800", letterSpacing: 0.5 },
+  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontFamily: theme.font.extraBold, letterSpacing: 0.5 },
 });

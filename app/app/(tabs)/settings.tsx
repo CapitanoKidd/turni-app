@@ -1,14 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { AlarmPicker } from "../../components/AlarmPicker";
+import { withAlpha } from "../../lib/color";
 import { ensureNotificationPermission, rescheduleAlarmsForShiftType } from "../../lib/notifications";
 import { DEFAULT_SETTINGS, storage } from "../../lib/storage";
 import { theme } from "../../lib/theme";
 import { TutorialDim, TutorialTarget, useRestartTutorial } from "../../lib/tutorial";
 import type { AppSettings, ShiftType } from "../../lib/types";
 import { isDayOff } from "../../lib/types";
+
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0";
 
 /**
  * La modalita' debug e' pensata per lo sviluppo, non per gli utenti finali: resta nascosta a meno che il nome inserito non sia proprio questo.
@@ -111,8 +115,13 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={{ gap: 2 }}>
+        <Text style={styles.pageTitle}>Impostazioni</Text>
+        <Text style={styles.versionCaption}>Turni · versione {APP_VERSION}</Text>
+      </View>
+
       <TutorialTarget name="username-input" style={styles.section}>
-        <Text style={styles.fieldLabel}>Nome utente</Text>
+        <Text style={styles.fieldLabel}>Nome nel prospetto</Text>
         {editingName ? (
           <>
             <TextInput
@@ -140,8 +149,15 @@ export default function SettingsScreen() {
           </>
         ) : (
           <View style={styles.nameDisplayRow}>
-            <Text style={styles.nameDisplayText}>{settings.userName}</Text>
-            <TouchableOpacity onPress={startEditingName}>
+            <View style={styles.nameCheckIcon}>
+              <Ionicons name="checkmark" size={16} color={theme.colors.primaryText} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nameDisplayText}>{settings.userName}</Text>
+              <Text style={styles.nameSavedCaption}>Salvato sul dispositivo</Text>
+            </View>
+            <TouchableOpacity style={styles.nameEditLinkRow} onPress={startEditingName}>
+              <Ionicons name="pencil-outline" size={14} color={theme.colors.primary} />
               <Text style={styles.nameEditLink}>Modifica</Text>
             </TouchableOpacity>
           </View>
@@ -166,9 +182,10 @@ export default function SettingsScreen() {
       */}
       <TutorialTarget name="add-shift-button" style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Gestisci turni</Text>
-          <TouchableOpacity onPress={() => router.push("/shift-type-editor")}>
-            <Text style={styles.addLink}>+ Nuovo</Text>
+          <Text style={styles.sectionTitle}>Turni</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => router.push("/shift-type-editor")} activeOpacity={0.85}>
+            <Ionicons name="add" size={16} color={theme.colors.primaryText} />
+            <Text style={styles.addButtonText}>Aggiungi</Text>
           </TouchableOpacity>
         </View>
 
@@ -181,7 +198,11 @@ export default function SettingsScreen() {
                 style={styles.shiftRowMain}
                 onPress={() => router.push({ pathname: "/shift-type-editor", params: { id: shift.id } })}
               >
-                <View style={[styles.dot, { backgroundColor: shift.color }]} />
+                <View style={[styles.shiftAvatar, { backgroundColor: withAlpha(shift.color, 0.16) }]}>
+                  <Text style={[styles.shiftAvatarText, { color: shift.color }]}>
+                    {shift.label.trim().charAt(0).toUpperCase() || "?"}
+                  </Text>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.shiftLabel}>{shift.label}</Text>
                   <Text style={styles.shiftTime}>
@@ -286,6 +307,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     ...theme.shadow.card,
   },
+  pageTitle: { ...theme.typography.title, color: theme.colors.text },
+  versionCaption: { ...theme.typography.caption, color: theme.colors.textFaint },
   fieldLabel: { ...theme.typography.label, color: theme.colors.textFaint },
   fieldError: { color: theme.colors.danger, fontSize: 12 },
   input: {
@@ -305,18 +328,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
   },
-  namePrimaryButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  namePrimaryButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold },
   nameSecondaryButton: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm },
-  nameSecondaryButtonText: { color: theme.colors.textMuted, fontWeight: "600" },
-  nameDisplayRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  nameDisplayText: { color: theme.colors.text, fontSize: 16, fontWeight: "600" },
-  nameEditLink: { color: theme.colors.primary, fontWeight: "700" },
+  nameSecondaryButtonText: { color: theme.colors.textMuted, fontFamily: theme.font.semiBold },
+  nameDisplayRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
+  nameCheckIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameDisplayText: { color: theme.colors.text, fontSize: 16, fontFamily: theme.font.semiBold },
+  nameSavedCaption: { color: theme.colors.textFaint, fontSize: 12, marginTop: 1 },
+  nameEditLinkRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  nameEditLink: { color: theme.colors.primary, fontFamily: theme.font.bold },
   row: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, paddingVertical: theme.spacing.xs },
-  rowTitle: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  rowTitle: { color: theme.colors.text, fontSize: 15, fontFamily: theme.font.semiBold },
   rowSubtitle: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionTitle: { ...theme.typography.subheading, color: theme.colors.text },
-  addLink: { color: theme.colors.primary, fontWeight: "700", fontSize: 13 },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+  },
+  addButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold, fontSize: 13 },
   emptyText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19 },
   shiftRow: { flexDirection: "row", alignItems: "center" },
   shiftRowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.border },
@@ -327,11 +369,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceAlt,
   },
   alarmIconButtonActive: { backgroundColor: theme.colors.primaryMuted },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  shiftLabel: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  shiftAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  shiftAvatarText: { fontSize: 15, fontFamily: theme.font.extraBold },
+  shiftLabel: { color: theme.colors.text, fontSize: 15, fontFamily: theme.font.semiBold },
   shiftTime: { color: theme.colors.textMuted, fontSize: 12, marginTop: 1 },
   privacyNote: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
-  replayTutorialLink: { color: theme.colors.primary, fontSize: 13, fontWeight: "600", textAlign: "center" },
+  replayTutorialLink: { color: theme.colors.primary, fontSize: 13, fontFamily: theme.font.semiBold, textAlign: "center" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(4,8,16,0.72)", justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: theme.colors.surfaceElevated,

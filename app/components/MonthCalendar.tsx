@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { withAlpha } from "../lib/color";
 import { theme } from "../lib/theme";
 import { isDayOff, type CalendarEntries, type CalendarOverrides, type ShiftType } from "../lib/types";
 
@@ -77,18 +78,26 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 style={[
                   styles.dayCell,
                   { width: cellSize, height: cellSize },
-                  isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
+                  isWorkingShift ? { backgroundColor: withAlpha(shiftType.color, 0.18) } : styles.emptyDayCell,
                   shiftType && isDayOff(shiftType) && styles.restDayCell,
                   isToday && styles.todayBorder,
                 ]}
                 onPress={() => onDayPress(cell.iso)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.dayNumber, isToday && !isWorkingShift && styles.dayNumberToday, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
+                <Text
+                  style={[
+                    styles.dayNumber,
+                    isToday && !isWorkingShift && styles.dayNumberToday,
+                    isWorkingShift ? { color: shiftType.color } : null,
+                  ]}
+                >
+                  {cell.day}
+                </Text>
                 {shiftType ? (
                   <Text
                     numberOfLines={1}
-                    style={[styles.shiftLabel, !isWorkingShift && styles.shiftLabelMuted]}
+                    style={[styles.shiftLabel, isWorkingShift ? { color: shiftType.color } : styles.shiftLabelMuted]}
                   >
                     {shiftType.label}
                   </Text>
@@ -109,7 +118,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: theme.colors.textMuted,
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: theme.font.semiBold,
   },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   dayCell: {
@@ -118,15 +127,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  emptyDayCell: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  emptyDayCell: { backgroundColor: theme.colors.surface },
   // Un giorno di riposo non ha il colore pieno di un turno: deve leggersi
   // subito come "non si lavora", non confondersi con un turno vero.
   restDayCell: { borderWidth: 1, borderColor: theme.colors.borderStrong, borderStyle: "dashed" },
   todayBorder: { borderWidth: 2, borderColor: theme.colors.primary },
-  dayNumber: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
-  dayNumberToday: { color: theme.colors.primary, fontWeight: "800" },
-  dayNumberOnShift: { color: theme.colors.background },
-  shiftLabel: { color: theme.colors.background, fontSize: 10, fontWeight: "700", maxWidth: "90%" },
+  dayNumber: { color: theme.colors.text, fontSize: 13, fontFamily: theme.font.semiBold },
+  dayNumberToday: { color: theme.colors.primary, fontFamily: theme.font.extraBold },
+  shiftLabel: { fontSize: 10, fontFamily: theme.font.bold, maxWidth: "90%" },
   shiftLabelMuted: { color: theme.colors.textMuted },
   // Piccolo indicatore per i giorni con un orario personalizzato ("modifica singolo turno"), visibile a colpo d'occhio senza aprire il giorno.
   overrideDot: {
@@ -136,8 +144,8 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: theme.colors.text,
+    backgroundColor: theme.colors.primary,
     borderWidth: 1.5,
-    borderColor: theme.colors.background,
+    borderColor: theme.colors.surface,
   },
 });

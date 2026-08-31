@@ -1,68 +1,77 @@
 /**
- * Palette, tipografia e ombre condivise. Tema scuro con più livelli di
- * profondità (sfondo / superficie / superficie sollevata) invece di un
- * unico grigio piatto ovunque, così le card e i modali si staccano dallo
- * sfondo invece di sembrare tutti sullo stesso piano.
+ * Palette, tipografia e ombre condivise. Tema chiaro: verde foresta profondo
+ * come accento (CTA, pillola attiva, badge), sfondo verde-menta chiarissimo,
+ * card leggermente più tinte dello sfondo invece che bianche piatte.
  */
 export const theme = {
   colors: {
-    background: "#0A0F1D",
-    surface: "#141C2E",
-    surfaceAlt: "#1C2740",
-    surfaceElevated: "#1B2540",
-    border: "#232E45",
-    borderStrong: "#2E3B57",
-    text: "#F5F7FB",
-    textMuted: "#93A0BD",
-    textFaint: "#5C6989",
-    primary: "#3BC5F6",
-    primaryMuted: "#0E2C42",
-    primaryText: "#03202F",
-    danger: "#F87171",
-    dangerMuted: "#3A1B1E",
-    success: "#4ADE80",
-    successMuted: "#0F3324",
-    warning: "#FBBF24",
-    warningMuted: "#3A2C0E",
+    background: "#EEF4EF",
+    surface: "#FFFFFF",
+    surfaceAlt: "#E9F1EA",
+    surfaceTint: "#E1EBE2",
+    surfaceElevated: "#FFFFFF",
+    border: "#D9E5DB",
+    borderStrong: "#C1D4C5",
+    text: "#16221B",
+    textMuted: "#5C6F62",
+    textFaint: "#8FA396",
+    primary: "#146C54",
+    primaryDark: "#0F5443",
+    primaryMuted: "#DBEEE3",
+    primaryText: "#FFFFFF",
+    danger: "#D0554F",
+    dangerMuted: "#F7E1DF",
+    success: "#2F9E64",
+    successMuted: "#DCF3E5",
+    warning: "#C0821E",
+    warningMuted: "#F5E7CC",
   },
-  radius: { sm: 10, md: 16, lg: 24, pill: 999 },
+  radius: { sm: 12, md: 18, lg: 26, pill: 999 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
+  /** I 5 pesi caricati di Baloo 2 (vedi useFonts in app/_layout.tsx): con un font su misura si usa SEMPRE fontFamily, mai fontWeight (sarebbero pesi diversi dello stesso font di sistema, qui sono file separati). */
+  font: {
+    regular: "Baloo2_400Regular",
+    medium: "Baloo2_500Medium",
+    semiBold: "Baloo2_600SemiBold",
+    bold: "Baloo2_700Bold",
+    extraBold: "Baloo2_800ExtraBold",
+  },
   typography: {
-    title: { fontSize: 28, fontWeight: "800", letterSpacing: -0.4 },
-    heading: { fontSize: 19, fontWeight: "700", letterSpacing: -0.2 },
-    subheading: { fontSize: 15, fontWeight: "700" },
-    body: { fontSize: 15, fontWeight: "400", lineHeight: 21 },
-    label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
-    caption: { fontSize: 12, fontWeight: "500" },
+    title: { fontSize: 26, fontFamily: "Baloo2_800ExtraBold" as const, letterSpacing: -0.3 },
+    heading: { fontSize: 19, fontFamily: "Baloo2_700Bold" as const, letterSpacing: -0.2 },
+    subheading: { fontSize: 16, fontFamily: "Baloo2_700Bold" as const },
+    body: { fontSize: 15, fontFamily: "Baloo2_500Medium" as const, lineHeight: 21 },
+    label: { fontSize: 11, fontFamily: "Baloo2_700Bold" as const, letterSpacing: 0.6, textTransform: "uppercase" as const },
+    caption: { fontSize: 12, fontFamily: "Baloo2_500Medium" as const },
   },
   shadow: {
     card: {
-      shadowColor: "#000814",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.28,
-      shadowRadius: 14,
-      elevation: 5,
+      shadowColor: "#0E3327",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 2,
     },
     elevated: {
-      shadowColor: "#000814",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.4,
-      shadowRadius: 24,
-      elevation: 12,
+      shadowColor: "#0E3327",
+      shadowOffset: { width: 0, height: 14 },
+      shadowOpacity: 0.16,
+      shadowRadius: 28,
+      elevation: 10,
     },
   },
 } as const;
 
-/** Palette di colori assegnati automaticamente ai nuovi tipi di turno. */
+/** Palette di colori assegnati automaticamente ai nuovi tipi di turno. Ogni colore serve sia da tinta piena (pallini, bordo "oggi") sia da coppia tenue-sfondo/testo-pieno per badge e celle (vedi lib/color.ts). */
 export const SHIFT_COLOR_PALETTE = [
-  "#38BDF8", // azzurro
-  "#FB923C", // arancio
-  "#A78BFA", // viola
-  "#4ADE80", // verde
-  "#F472B6", // rosa
-  "#FACC15", // giallo
-  "#F87171", // rosso
-  "#2DD4BF", // turchese
+  "#2F8F72", // verde smeraldo
+  "#C97A3D", // terracotta
+  "#6E6FC9", // indaco
+  "#3D9BB8", // azzurro petrolio
+  "#C15A87", // magenta polveroso
+  "#B8A23D", // senape
+  "#C0554F", // rosso mattone
+  "#4D9E8F", // turchese
 ];
 
 export function nextShiftColor(existingCount: number): string {

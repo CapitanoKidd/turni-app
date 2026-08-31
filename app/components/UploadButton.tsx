@@ -15,7 +15,10 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 /**
  * Pulsante unico per caricare la griglia turni. Chiede subito quale fonte
  * usare (fotocamera, galleria o file) cosi' l'utente non deve capire in
- * anticipo cosa scegliere: e' l'app a proporre le tre opzioni possibili.
+ * anticipo cosa scegliere: e' l'app a proporre le tre opzioni possibili. Il
+ * "pulsante" e' l'intera card (anche la pillola bianca dentro non ha un suo
+ * onPress separato, e' solo decorativa): toccare ovunque sulla card apre le
+ * stesse opzioni.
  */
 export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
   async function handlePress() {
@@ -70,7 +73,7 @@ export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
   }
 
   return (
-    <TouchableOpacity style={styles.card} onPress={handlePress} disabled={loading} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.card} onPress={handlePress} disabled={loading} activeOpacity={0.9}>
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={theme.colors.primaryText} />
@@ -79,10 +82,14 @@ export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
       ) : (
         <>
           <View style={styles.iconBadge}>
-            <Ionicons name="cloud-upload-outline" size={30} color={theme.colors.primaryText} />
+            <Ionicons name="scan-outline" size={26} color={theme.colors.primaryText} />
           </View>
-          <Text style={styles.title}>Carica turni</Text>
-          <Text style={styles.subtitle}>Foto, PDF o Word della griglia turni</Text>
+          <Text style={styles.title}>Importa il nuovo prospetto</Text>
+          <Text style={styles.subtitle}>Foto, PDF o Word. Il documento resta sul dispositivo.</Text>
+          <View style={styles.pillButton}>
+            <Ionicons name="camera-outline" size={16} color={theme.colors.primary} />
+            <Text style={styles.pillButtonText}>Inizia importazione</Text>
+          </View>
         </>
       )}
     </TouchableOpacity>
@@ -93,22 +100,33 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.lg,
-    paddingVertical: theme.spacing.xl,
-    alignItems: "center",
+    padding: theme.spacing.lg,
+    alignItems: "flex-start",
     gap: 6,
     ...theme.shadow.elevated,
-    shadowColor: theme.colors.primary,
+    shadowColor: theme.colors.primaryDark,
   },
   iconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(3,32,47,0.14)",
+    width: 44,
+    height: 44,
+    borderRadius: theme.radius.md,
+    backgroundColor: "rgba(255,255,255,0.16)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
-  title: { fontSize: 18, fontWeight: "800", color: theme.colors.primaryText, letterSpacing: -0.2 },
-  subtitle: { fontSize: 13, color: theme.colors.primaryText, opacity: 0.75 },
+  title: { fontSize: 20, fontFamily: theme.font.extraBold, color: theme.colors.primaryText, letterSpacing: -0.2 },
+  subtitle: { fontSize: 13, fontFamily: theme.font.medium, color: theme.colors.primaryText, opacity: 0.8, lineHeight: 18 },
+  pillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: theme.colors.primaryText,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+    marginTop: theme.spacing.sm,
+  },
+  pillButtonText: { fontSize: 14, fontFamily: theme.font.bold, color: theme.colors.primary },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
 });

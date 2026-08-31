@@ -72,11 +72,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  optionText: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  optionText: { color: theme.colors.text, fontSize: 15, fontFamily: theme.font.semiBold },
   closeButton: {
     marginTop: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
     alignItems: "center",
   },
-  closeButtonText: { color: theme.colors.textMuted, fontWeight: "600" },
+  closeButtonText: { color: theme.colors.textMuted, fontFamily: theme.font.semiBold },
 });

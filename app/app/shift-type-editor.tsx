@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     alignItems: "center",
   },
-  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontWeight: "800", letterSpacing: 0.5 },
+  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontFamily: theme.font.extraBold, letterSpacing: 0.5 },
   colorRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   colorSwatch: {
     width: 32,
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     ...theme.shadow.card,
     shadowColor: theme.colors.primary,
   },
-  saveButtonText: { color: theme.colors.primaryText, fontWeight: "700", fontSize: 16 },
+  saveButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold, fontSize: 16 },
   deleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: theme.spacing.sm },
-  deleteButtonText: { color: theme.colors.danger, fontWeight: "600" },
+  deleteButtonText: { color: theme.colors.danger, fontFamily: theme.font.semiBold },
 });

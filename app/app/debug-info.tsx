@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.lg, gap: theme.spacing.md },
   hint: { color: theme.colors.textMuted, fontSize: 13 },
   imagesSection: { gap: theme.spacing.xs },
-  imagesTitle: { color: theme.colors.text, fontWeight: "700", fontSize: 14 },
+  imagesTitle: { color: theme.colors.text, fontFamily: theme.font.bold, fontSize: 14 },
   thumbnailWrapper: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     ...theme.shadow.card,
     shadowColor: theme.colors.primary,
   },
-  primaryButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  primaryButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold },
   modalBackdrop: { flex: 1, backgroundColor: "#000000ee" },
   modalScrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   zoomBar: {
@@ -259,6 +259,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   zoomButtonActive: { backgroundColor: theme.colors.primary },
-  zoomButtonText: { color: "#fff", fontWeight: "700" },
+  zoomButtonText: { color: "#fff", fontFamily: theme.font.bold },
   zoomButtonTextActive: { color: theme.colors.primaryText },
 });

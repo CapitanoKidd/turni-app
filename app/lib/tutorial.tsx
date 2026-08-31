@@ -256,12 +256,12 @@ const styles = StyleSheet.create({
   },
   tooltipText: { color: theme.colors.text, fontSize: 15, lineHeight: 21 },
   actions: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  skipText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: "600" },
+  skipText: { color: theme.colors.textMuted, fontSize: 13, fontFamily: theme.font.semiBold },
   nextButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
-  nextButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  nextButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold },
 });

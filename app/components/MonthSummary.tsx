@@ -101,11 +101,11 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  label: { color: theme.colors.text, fontSize: 13, fontWeight: "600", flexShrink: 1 },
+  label: { color: theme.colors.text, fontSize: 13, fontFamily: theme.font.semiBold, flexShrink: 1 },
   count: {
     color: theme.colors.textMuted,
     fontSize: 12,
-    fontWeight: "800",
+    fontFamily: theme.font.extraBold,
     marginLeft: "auto",
     backgroundColor: theme.colors.surface,
     minWidth: 20,

@@ -139,16 +139,8 @@ export default function CalendarScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TutorialDim style={styles.monthPicker}>
-        <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.monthLabel}>
-          {MONTH_NAMES[month - 1]} {year}
-        </Text>
-        <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
-        </TouchableOpacity>
+      <TutorialDim>
+        <Text style={styles.pageTitle}>Calendario</Text>
       </TutorialDim>
 
       {/*
@@ -158,7 +150,19 @@ export default function CalendarScreen() {
         quindi e' il ramo "vuoto" quello che si evidenzia davvero in quel
         momento.
       */}
-      <TutorialTarget name="calendar-overview" style={{ gap: theme.spacing.md }}>
+      <TutorialTarget name="calendar-overview" style={styles.calendarCard}>
+        <View style={styles.monthPicker}>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
+            <Ionicons name="chevron-back" size={18} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.monthLabel}>
+            {MONTH_NAMES[month - 1]} {year}
+          </Text>
+          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+
         {shiftTypes.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={32} color={theme.colors.textFaint} />
@@ -169,26 +173,31 @@ export default function CalendarScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-            <>
-              <MonthCalendar
-                year={year}
-                month1To12={month}
-                entries={entries}
-                overrides={overrides}
-                shiftTypes={shiftTypes}
-                onDayPress={setSelectedDate}
-              />
-              {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
-              <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
-              {hasShifts ? (
-                <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
-                  <Ionicons name="trash-outline" size={14} color={theme.colors.danger} />
-                  <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
-                </TouchableOpacity>
-              ) : null}
-            </>
-          )}
+          <>
+            <MonthCalendar
+              year={year}
+              month1To12={month}
+              entries={entries}
+              overrides={overrides}
+              shiftTypes={shiftTypes}
+              onDayPress={setSelectedDate}
+            />
+            {!hasShifts ? <Text style={styles.noneThisMonth}>Nessun turno importato per questo mese.</Text> : null}
+          </>
+        )}
       </TutorialTarget>
+
+      {shiftTypes.length > 0 ? (
+        <TutorialDim style={{ gap: theme.spacing.md }}>
+          <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
+          {hasShifts ? (
+            <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
+              <Ionicons name="trash-outline" size={14} color={theme.colors.danger} />
+              <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
+            </TouchableOpacity>
+          ) : null}
+        </TutorialDim>
+      ) : null}
 
       <DayShiftSheet
         visible={selectedDate !== null}
@@ -210,24 +219,25 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
+  pageTitle: { ...theme.typography.title, color: theme.colors.text },
+  calendarCard: {
+    backgroundColor: theme.colors.surfaceTint,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
   monthPicker: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadow.card,
+    paddingHorizontal: theme.spacing.xs,
   },
   monthArrow: {
     padding: theme.spacing.xs,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surfaceAlt,
+    backgroundColor: theme.colors.surface,
   },
-  monthLabel: { color: theme.colors.text, fontSize: 16, fontWeight: "700", textTransform: "capitalize", letterSpacing: 0.2 },
+  monthLabel: { color: theme.colors.text, fontSize: 17, fontFamily: theme.font.extraBold, textTransform: "capitalize", letterSpacing: -0.2 },
   noneThisMonth: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
   emptyState: {
     backgroundColor: theme.colors.surface,
@@ -235,11 +245,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
     alignItems: "center",
     gap: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadow.card,
   },
-  emptyTitle: { color: theme.colors.text, fontSize: 17, fontWeight: "700" },
+  emptyTitle: { color: theme.colors.text, fontSize: 17, fontFamily: theme.font.bold },
   emptyText: { color: theme.colors.textMuted, textAlign: "center" },
   emptyButton: {
     marginTop: theme.spacing.sm,
@@ -248,7 +255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
   },
-  emptyButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
+  emptyButtonText: { color: theme.colors.primaryText, fontFamily: theme.font.bold },
   resetButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -256,5 +263,5 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: theme.spacing.sm,
   },
-  resetButtonText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
+  resetButtonText: { color: theme.colors.danger, fontSize: 13, fontFamily: theme.font.semiBold },
 });
