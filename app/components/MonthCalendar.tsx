@@ -55,7 +55,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
   // quadrate): piu' spazio per numero e sigla del turno, senza cambiare a
   // quale colonna/giorno corrisponde ciascuna cella.
   const cellWidth = containerWidth > 0 ? (containerWidth - CELL_GAP * (COLUMNS - 1)) / COLUMNS : 0;
-  const cellHeight = cellWidth * 1.2;
+  const cellHeight = cellWidth * 1.3;
 
   return (
     <View onLayout={handleLayout}>
@@ -140,7 +140,10 @@ const styles = StyleSheet.create({
   dayNumber: { color: theme.calendar.text, fontSize: 15, fontFamily: theme.font.bold },
   dayNumberToday: { fontFamily: theme.font.extraBold },
   dayNumberOnShift: { fontFamily: theme.font.extraBold },
-  shiftLabel: { fontSize: 11, fontFamily: theme.font.bold, maxWidth: "90%" },
+  // "numberOfLines=1" (nel JSX) + "maxWidth: 90%" tengono la sigla dentro i
+  // bordi della cella anche a questa dimensione maggiore: se non ci sta,
+  // viene troncata invece di sfondare il riquadro.
+  shiftLabel: { fontSize: 14, fontFamily: theme.font.extraBold, maxWidth: "90%" },
   shiftLabelOnShift: { color: theme.calendar.text },
   shiftLabelMuted: { color: theme.calendar.textFaint },
   // Piccolo indicatore per i giorni con un orario personalizzato ("modifica singolo turno"), visibile a colpo d'occhio senza aprire il giorno.

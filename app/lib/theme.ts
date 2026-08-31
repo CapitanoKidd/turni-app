@@ -35,11 +35,12 @@ export const theme = {
   /**
    * Solo per la card del calendario mensile: stesso verde della card CTA in
    * Home (FOREST_GREEN, non un verde scuro a se'), testo chiaro sopra di
-   * conseguenza. Tinte SOLIDE, non trasparenze: cosi' restano leggibili e
-   * coerenti a prescindere da cosa c'e' "sotto".
+   * conseguenza. Lo sfondo e' leggermente trasparente (suffisso alpha sul
+   * colore esadecimale): sopra allo sfondo chiaro della pagina risulta un
+   * verde piu' chiaro e "morbido" invece che pieno e cupo.
    */
   calendar: {
-    background: FOREST_GREEN,
+    background: `${FOREST_GREEN}D9`, // ~85% di opacita'
     cellIdle: FOREST_GREEN_DARK,
     border: "#3E8570",
     text: "#FFFFFF",
