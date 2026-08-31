@@ -3,6 +3,12 @@
  * come accento (CTA, pillola attiva, badge), sfondo verde-menta chiarissimo,
  * card leggermente più tinte dello sfondo invece che bianche piatte.
  */
+// Lo stesso verde della card CTA in Home, delle pillole, ecc.: la card del
+// calendario lo riusa TALE E QUALE (non una tinta scura sua propria), per
+// restare coerente col resto dell'app invece di introdurre un secondo verde.
+const FOREST_GREEN = "#146C54";
+const FOREST_GREEN_DARK = "#0F5443";
+
 export const theme = {
   colors: {
     background: "#EEF4EF",
@@ -15,8 +21,8 @@ export const theme = {
     text: "#16221B",
     textMuted: "#5C6F62",
     textFaint: "#8FA396",
-    primary: "#146C54",
-    primaryDark: "#0F5443",
+    primary: FOREST_GREEN,
+    primaryDark: FOREST_GREEN_DARK,
     primaryMuted: "#DBEEE3",
     primaryText: "#FFFFFF",
     danger: "#D0554F",
@@ -26,14 +32,19 @@ export const theme = {
     warning: "#C0821E",
     warningMuted: "#F5E7CC",
   },
-  /** Solo per la card del calendario mensile: sfondo verde scuro invece del chiaro usato ovunque nell'app, richiesto esplicitamente per distinguerlo dal resto e dargli piu' carattere. Di conseguenza testo/bordi qui sono chiari, non scuri come nel resto del tema. */
+  /**
+   * Solo per la card del calendario mensile: stesso verde della card CTA in
+   * Home (FOREST_GREEN, non un verde scuro a se'), testo chiaro sopra di
+   * conseguenza. Tinte SOLIDE, non trasparenze: cosi' restano leggibili e
+   * coerenti a prescindere da cosa c'e' "sotto".
+   */
   calendar: {
-    background: "#123F32",
-    cellIdle: "rgba(255,255,255,0.08)",
-    border: "rgba(255,255,255,0.16)",
+    background: FOREST_GREEN,
+    cellIdle: FOREST_GREEN_DARK,
+    border: "#3E8570",
     text: "#FFFFFF",
-    textMuted: "rgba(255,255,255,0.68)",
-    textFaint: "rgba(255,255,255,0.42)",
+    textMuted: "#BFE0D3",
+    textFaint: "#8FC4AE",
   },
   radius: { sm: 12, md: 18, lg: 26, pill: 999 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
