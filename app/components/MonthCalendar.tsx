@@ -74,7 +74,12 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
 
             const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
             const isToday = cell.iso === todayIso;
-            const isWorkingShift = shiftType && !isDayOff(shiftType);
+            // Di norma un giorno di riposo/ferie resta senza colore (il suo
+            // "color" e' null di default) - ma se l'utente gliene ha
+            // assegnato uno lo stesso, va rispettato qui esattamente come
+            // per un turno di lavoro: e' il colore stesso ad avere l'ultima
+            // parola, non se il turno preveda un orario di lavoro o meno.
+            const hasColor = Boolean(shiftType?.color);
             const hasOverride = Boolean(overrides?.[cell.iso]);
 
             return (
@@ -83,7 +88,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 style={[
                   styles.dayCell,
                   { width: cellWidth, height: cellHeight },
-                  isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
+                  hasColor ? { backgroundColor: shiftType!.color! } : styles.emptyDayCell,
                   shiftType && isDayOff(shiftType) && styles.restDayCell,
                   isToday && styles.todayBorder,
                 ]}
@@ -93,8 +98,8 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 <Text
                   style={[
                     styles.dayNumber,
-                    isToday && !isWorkingShift && styles.dayNumberToday,
-                    isWorkingShift && styles.dayNumberOnShift,
+                    isToday && !hasColor && styles.dayNumberToday,
+                    hasColor && styles.dayNumberOnShift,
                   ]}
                 >
                   {cell.day}
@@ -102,7 +107,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 {shiftType ? (
                   <Text
                     numberOfLines={1}
-                    style={[styles.shiftLabel, isWorkingShift ? styles.shiftLabelOnShift : styles.shiftLabelMuted]}
+                    style={[styles.shiftLabel, hasColor ? styles.shiftLabelOnShift : styles.shiftLabelMuted]}
                   >
                     {shiftType.label}
                   </Text>

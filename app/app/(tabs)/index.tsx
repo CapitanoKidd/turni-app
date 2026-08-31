@@ -273,7 +273,7 @@ export default function HomeScreen() {
           ) : (
             upcomingShifts.map(({ date, shiftType, startTime, endTime, overnight }) => (
               <View key={date} style={styles.upcomingRow}>
-                <View style={[styles.upcomingBar, { backgroundColor: shiftType.color }]} />
+                <View style={[styles.upcomingBar, { backgroundColor: shiftType.color ?? theme.colors.borderStrong }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.upcomingLabel}>{shiftType.label}</Text>
                   <Text style={styles.upcomingTime}>
@@ -282,10 +282,19 @@ export default function HomeScreen() {
                     {overnight ? " · giorno successivo" : ""}
                   </Text>
                 </View>
-                <View style={[styles.upcomingBadge, { backgroundColor: withAlpha(shiftType.color, 0.16) }]}>
-                  <Text style={[styles.upcomingBadgeText, { color: shiftType.color }]}>
-                    {shiftType.label.trim().charAt(0).toUpperCase() || "?"}
-                  </Text>
+                <View
+                  style={[
+                    styles.upcomingBadge,
+                    { backgroundColor: shiftType.color ? withAlpha(shiftType.color, 0.16) : theme.colors.surfaceAlt },
+                  ]}
+                >
+                  {shiftType.color ? (
+                    <Text style={[styles.upcomingBadgeText, { color: shiftType.color }]}>
+                      {shiftType.label.trim().charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  ) : (
+                    <Ionicons name="ban-outline" size={16} color={theme.colors.textFaint} />
+                  )}
                 </View>
               </View>
             ))

@@ -200,10 +200,19 @@ export default function SettingsScreen() {
                 style={styles.shiftRowMain}
                 onPress={() => router.push({ pathname: "/shift-type-editor", params: { id: shift.id } })}
               >
-                <View style={[styles.shiftAvatar, { backgroundColor: withAlpha(shift.color, 0.16) }]}>
-                  <Text style={[styles.shiftAvatarText, { color: shift.color }]}>
-                    {shift.label.trim().charAt(0).toUpperCase() || "?"}
-                  </Text>
+                <View
+                  style={[
+                    styles.shiftAvatar,
+                    { backgroundColor: shift.color ? withAlpha(shift.color, 0.16) : theme.colors.surfaceAlt },
+                  ]}
+                >
+                  {shift.color ? (
+                    <Text style={[styles.shiftAvatarText, { color: shift.color }]}>
+                      {shift.label.trim().charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  ) : (
+                    <Ionicons name="ban-outline" size={16} color={theme.colors.textFaint} />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.shiftLabel}>{shift.label}</Text>

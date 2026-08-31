@@ -86,7 +86,7 @@ export function DayShiftSheet({
                   onPress={() => onSelectShiftType(shift.id)}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.dot, { backgroundColor: shift.color }]} />
+                  <View style={[styles.dot, shift.color ? { backgroundColor: shift.color } : styles.dotNoColor]} />
                   <Text style={styles.optionText}>
                     {isDayOff(shift) ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
                   </Text>
@@ -219,6 +219,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: { backgroundColor: theme.colors.primaryMuted, borderColor: theme.colors.primary },
   dot: { width: 14, height: 14, borderRadius: 7 },
+  dotNoColor: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: theme.colors.textFaint },
   optionText: { color: theme.colors.text, fontSize: 15, flex: 1 },
   overrideBox: {
     backgroundColor: theme.colors.surfaceAlt,

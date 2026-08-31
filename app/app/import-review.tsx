@@ -161,7 +161,9 @@ export default function ImportReviewScreen() {
             <View key={`${shift.date}-${index}`} style={styles.previewRow}>
               <Text style={styles.previewDate}>{formatDayLabel(shift.date)}</Text>
               <View style={styles.previewShift}>
-                {shiftType ? <View style={[styles.dot, { backgroundColor: shiftType.color }]} /> : null}
+                {shiftType ? (
+                  <View style={[styles.dot, shiftType.color ? { backgroundColor: shiftType.color } : styles.dotNoColor]} />
+                ) : null}
                 <Text
                   style={[
                     styles.previewCode,
@@ -247,6 +249,7 @@ const styles = StyleSheet.create({
   previewDate: { color: theme.colors.textMuted, fontSize: 13, textTransform: "capitalize" },
   previewShift: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  dotNoColor: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: theme.colors.textFaint },
   previewCode: { color: theme.colors.text, fontFamily: theme.font.semiBold },
   previewCodePending: { color: theme.colors.danger },
   previewCodeBlank: { color: theme.colors.textMuted, fontStyle: "italic", fontFamily: theme.font.regular },

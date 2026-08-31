@@ -62,7 +62,7 @@ function SummaryGroup({ label, rows }: { label: string; rows: SummaryRow[] }) {
       <View style={styles.grid}>
         {rows.map(({ shiftType, count }) => (
           <View key={shiftType.id} style={styles.row}>
-            <View style={[styles.dot, { backgroundColor: shiftType.color }]} />
+            <View style={[styles.dot, shiftType.color ? { backgroundColor: shiftType.color } : styles.dotNoColor]} />
             <Text style={styles.label} numberOfLines={1}>
               {shiftType.label}
             </Text>
@@ -101,6 +101,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  // "Nessun colore": pallino vuoto (solo contorno) invece di un riempimento pieno, cosi' si distingue subito da un vero colore assegnato.
+  dotNoColor: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: theme.colors.textFaint },
   label: { color: theme.colors.text, fontSize: 13, fontFamily: theme.font.semiBold, flexShrink: 1 },
   count: {
     color: theme.colors.textMuted,

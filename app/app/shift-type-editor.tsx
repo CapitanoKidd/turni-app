@@ -24,7 +24,11 @@ export default function ShiftTypeEditorScreen() {
   const [endTime, setEndTime] = useState("14:00");
   const [alarmEnabled, setAlarmEnabled] = useState(false);
   const [alarmTime, setAlarmTime] = useState("05:15");
-  const [color, setColor] = useState(SHIFT_COLOR_PALETTE[0]);
+  const [color, setColor] = useState<string | null>(SHIFT_COLOR_PALETTE[0]);
+  // true appena l'utente tocca un colore di persona (incluso "nessun
+  // colore"): da quel momento il colore non viene piu' toccato in automatico
+  // dal cambio di Riposo/Ferie sotto, e' scelta sua.
+  const [colorTouched, setColorTouched] = useState(false);
   const [activePicker, setActivePicker] = useState<ActivePicker>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -47,11 +51,27 @@ export default function ShiftTypeEditorScreen() {
           setAlarmEnabled(existing.alarmEnabled);
           setAlarmTime(existing.alarmTime ?? "05:15");
           setColor(existing.color);
+          setColorTouched(true); // un turno esistente ha gia' un colore scelto (o esplicitamente "nessuno"): non va risovrascritto
         }
       }
       setLoaded(true);
     })();
   }, [params.id]);
+
+  // Un turno di riposo/ferie di un turno NUOVO parte di default senza
+  // colore; un turno di lavoro riprende il colore automatico. Solo finche'
+  // l'utente non sceglie un colore di persona (colorTouched) — dopo, questa
+  // reazione automatica si disattiva: la sua scelta resta quella che ha
+  // fatto, anche se in seguito riattiva/disattiva Riposo o Ferie.
+  useEffect(() => {
+    if (isEditing || colorTouched) return;
+    setColor(isRestDay || isVacation ? null : nextShiftColor(allShiftTypes.length));
+  }, [isRestDay, isVacation, isEditing, colorTouched, allShiftTypes.length]);
+
+  function selectColor(value: string | null) {
+    setColor(value);
+    setColorTouched(true);
+  }
 
   async function handleSave() {
     const trimmedLabel = label.trim();
@@ -127,7 +147,17 @@ export default function ShiftTypeEditorScreen() {
         />
 
         <Text style={[styles.fieldLabel, { marginTop: theme.spacing.xs }]}>Colore</Text>
+        <Text style={styles.hint}>
+          I turni di riposo/ferie di norma restano senza colore: assegnane uno solo se vuoi vederlo comunque nel calendario.
+        </Text>
         <View style={styles.colorRow}>
+          <TouchableOpacity
+            style={[styles.colorSwatch, styles.noColorSwatch, color === null && styles.colorSwatchSelected]}
+            onPress={() => selectColor(null)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="ban-outline" size={16} color={theme.colors.textFaint} />
+          </TouchableOpacity>
           {SHIFT_COLOR_PALETTE.map((paletteColor) => (
             <TouchableOpacity
               key={paletteColor}
@@ -136,7 +166,7 @@ export default function ShiftTypeEditorScreen() {
                 { backgroundColor: paletteColor },
                 color === paletteColor && styles.colorSwatchSelected,
               ]}
-              onPress={() => setColor(paletteColor)}
+              onPress={() => selectColor(paletteColor)}
               activeOpacity={0.8}
             >
               {color === paletteColor ? <Ionicons name="checkmark" size={16} color={theme.colors.background} /> : null}
@@ -282,6 +312,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   colorSwatchSelected: { borderColor: theme.colors.text },
+  noColorSwatch: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+  },
   switchRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
   saveButton: {
     backgroundColor: theme.colors.primary,

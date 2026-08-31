@@ -8,7 +8,8 @@ export interface ShiftType {
   isVacation: boolean;
   startTime?: string; // "HH:mm", assente se isRestDay o isVacation
   endTime?: string; // "HH:mm", assente se isRestDay o isVacation
-  color: string; // colore usato nel calendario/legenda
+  /** Colore usato nel calendario/legenda, o null per "nessun colore" (default per i turni di riposo/ferie: se l'utente ne assegna comunque uno, va rispettato ovunque, calendario incluso). */
+  color: string | null;
   alarmEnabled: boolean;
   alarmTime?: string; // "HH:mm", richiesto se alarmEnabled
 }
