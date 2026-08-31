@@ -1,4 +1,5 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -115,17 +116,17 @@ export default function ShiftTypeEditorScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.fieldLabel}>Nome del turno</Text>
-      <TextInput
-        style={styles.input}
-        value={label}
-        onChangeText={setLabel}
-        placeholder="Es. M, Mattina, 1, M1…"
-        placeholderTextColor={theme.colors.textMuted}
-      />
+      <View style={styles.card}>
+        <Text style={styles.fieldLabel}>Nome del turno</Text>
+        <TextInput
+          style={styles.input}
+          value={label}
+          onChangeText={setLabel}
+          placeholder="Es. M, Mattina, 1, M1…"
+          placeholderTextColor={theme.colors.textFaint}
+        />
 
-      <View>
-        <Text style={styles.fieldLabel}>Colore</Text>
+        <Text style={[styles.fieldLabel, { marginTop: theme.spacing.xs }]}>Colore</Text>
         <View style={styles.colorRow}>
           {SHIFT_COLOR_PALETTE.map((paletteColor) => (
             <TouchableOpacity
@@ -136,46 +137,61 @@ export default function ShiftTypeEditorScreen() {
                 color === paletteColor && styles.colorSwatchSelected,
               ]}
               onPress={() => setColor(paletteColor)}
-            />
+              activeOpacity={0.8}
+            >
+              {color === paletteColor ? <Ionicons name="checkmark" size={16} color={theme.colors.background} /> : null}
+            </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      <View style={styles.switchRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Riposo</Text>
-          <Text style={styles.hint}>Nessun orario di lavoro e nessuna sveglia per questo turno.</Text>
+      <View style={styles.card}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Riposo</Text>
+            <Text style={styles.hint}>Nessun orario di lavoro e nessuna sveglia per questo turno.</Text>
+          </View>
+          <Switch
+            value={isRestDay}
+            onValueChange={(value) => {
+              setIsRestDay(value);
+              if (value) setIsVacation(false);
+            }}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primaryMuted }}
+            thumbColor={isRestDay ? theme.colors.primary : theme.colors.textFaint}
+          />
         </View>
-        <Switch
-          value={isRestDay}
-          onValueChange={(value) => {
-            setIsRestDay(value);
-            if (value) setIsVacation(false);
-          }}
-        />
-      </View>
 
-      <View style={styles.switchRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Ferie</Text>
-          <Text style={styles.hint}>Come riposo, ma contata separatamente nel riepilogo del mese.</Text>
+        <View style={styles.divider} />
+
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Ferie</Text>
+            <Text style={styles.hint}>Come riposo, ma contata separatamente nel riepilogo del mese.</Text>
+          </View>
+          <Switch
+            value={isVacation}
+            onValueChange={(value) => {
+              setIsVacation(value);
+              if (value) setIsRestDay(false);
+            }}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primaryMuted }}
+            thumbColor={isVacation ? theme.colors.primary : theme.colors.textFaint}
+          />
         </View>
-        <Switch
-          value={isVacation}
-          onValueChange={(value) => {
-            setIsVacation(value);
-            if (value) setIsRestDay(false);
-          }}
-        />
       </View>
 
       {!isRestDay && !isVacation ? (
-        <>
-          <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
-          <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />
+        <View style={styles.card}>
+          <View style={styles.timeRow}>
+            <TimeRow label="Inizio" value={startTime} onPress={() => setActivePicker("start")} />
+            <TimeRow label="Fine" value={endTime} onPress={() => setActivePicker("end")} />
+          </View>
+
+          <View style={styles.divider} />
 
           <AlarmPicker enabled={alarmEnabled} time={alarmTime} onToggleEnabled={setAlarmEnabled} onChangeTime={setAlarmTime} />
-        </>
+        </View>
       ) : null}
 
       {activePicker ? (
@@ -194,12 +210,13 @@ export default function ShiftTypeEditorScreen() {
         />
       ) : null}
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+      <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
         <Text style={styles.saveButtonText}>Salva turno</Text>
       </TouchableOpacity>
 
       {isEditing ? (
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.8}>
+          <Ionicons name="trash-outline" size={16} color={theme.colors.danger} />
           <Text style={styles.deleteButtonText}>Elimina turno</Text>
         </TouchableOpacity>
       ) : null}
@@ -209,9 +226,9 @@ export default function ShiftTypeEditorScreen() {
 
 function TimeRow({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
   return (
-    <View>
+    <View style={{ flex: 1 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity style={styles.timeButton} onPress={onPress}>
+      <TouchableOpacity style={styles.timeButton} onPress={onPress} activeOpacity={0.8}>
         <Text style={styles.timeButtonText}>{value}</Text>
       </TouchableOpacity>
     </View>
@@ -220,26 +237,50 @@ function TimeRow({ label, value, onPress }: { label: string; value: string; onPr
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: theme.spacing.lg, gap: theme.spacing.md },
-  fieldLabel: { color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.xs, fontWeight: "600" },
-  hint: { color: theme.colors.textMuted, fontSize: 12 },
-  input: {
+  content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.md },
+  card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
+  },
+  divider: { height: 1, backgroundColor: theme.colors.border },
+  fieldLabel: { ...theme.typography.label, color: theme.colors.textFaint },
+  hint: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  input: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     color: theme.colors.text,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
+  timeRow: { flexDirection: "row", gap: theme.spacing.sm },
   timeButton: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: "center",
   },
-  timeButtonText: { color: theme.colors.text, fontSize: 16, fontWeight: "600" },
+  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontWeight: "800", letterSpacing: 0.5 },
   colorRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  colorSwatch: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, borderColor: "transparent" },
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   colorSwatchSelected: { borderColor: theme.colors.text },
   switchRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
   saveButton: {
@@ -247,9 +288,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingVertical: theme.spacing.md,
     alignItems: "center",
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    ...theme.shadow.card,
+    shadowColor: theme.colors.primary,
   },
   saveButtonText: { color: theme.colors.primaryText, fontWeight: "700", fontSize: 16 },
-  deleteButton: { alignItems: "center", paddingVertical: theme.spacing.sm },
+  deleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: theme.spacing.sm },
   deleteButtonText: { color: theme.colors.danger, fontWeight: "600" },
 });

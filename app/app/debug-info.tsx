@@ -221,6 +221,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     overflow: "hidden",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   thumbnailLoading: { height: 120, backgroundColor: theme.colors.surfaceAlt },
   thumbnailHint: {
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     paddingVertical: 4,
   },
-  textBox: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: theme.radius.md },
+  textBox: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border },
   debugText: { color: theme.colors.text, fontSize: 12, fontFamily: "monospace" },
   selectHint: { color: theme.colors.textMuted, fontSize: 11, textAlign: "center" },
   primaryButton: {
@@ -236,6 +238,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingVertical: theme.spacing.md,
     alignItems: "center",
+    ...theme.shadow.card,
+    shadowColor: theme.colors.primary,
   },
   primaryButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
   modalBackdrop: { flex: 1, backgroundColor: "#000000ee" },

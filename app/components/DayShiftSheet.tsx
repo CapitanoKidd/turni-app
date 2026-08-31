@@ -1,4 +1,5 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { dateToTimeString, timeStringToDate } from "../lib/time";
@@ -69,6 +70,7 @@ export function DayShiftSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.handle} />
           <Text style={styles.title}>{formatDateLabel(dateIso)}</Text>
 
           <ScrollView style={styles.list}>
@@ -82,11 +84,15 @@ export function DayShiftSheet({
                   key={shift.id}
                   style={[styles.option, currentShiftTypeId === shift.id && styles.optionSelected]}
                   onPress={() => onSelectShiftType(shift.id)}
+                  activeOpacity={0.75}
                 >
                   <View style={[styles.dot, { backgroundColor: shift.color }]} />
                   <Text style={styles.optionText}>
                     {isDayOff(shift) ? shift.label : `${shift.label} · ${shift.startTime}-${shift.endTime}`}
                   </Text>
+                  {currentShiftTypeId === shift.id ? (
+                    <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                  ) : null}
                 </TouchableOpacity>
               ))
             )}
@@ -180,15 +186,25 @@ export function DayShiftSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  backdrop: { flex: 1, backgroundColor: "rgba(4,8,16,0.72)", justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.surfaceElevated,
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
     padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
     maxHeight: "85%",
+    ...theme.shadow.elevated,
   },
-  title: { color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: theme.spacing.md, textTransform: "capitalize" },
+  handle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    marginBottom: theme.spacing.sm,
+  },
+  title: { ...theme.typography.heading, color: theme.colors.text, marginBottom: theme.spacing.md, textTransform: "capitalize" },
   list: { marginBottom: theme.spacing.sm },
   emptyText: { color: theme.colors.textMuted, marginBottom: theme.spacing.md },
   option: {
@@ -198,21 +214,25 @@ const styles = StyleSheet.create({
     padding: theme.spacing.sm,
     borderRadius: theme.radius.sm,
     marginBottom: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
-  optionSelected: { backgroundColor: theme.colors.surfaceAlt },
+  optionSelected: { backgroundColor: theme.colors.primaryMuted, borderColor: theme.colors.primary },
   dot: { width: 14, height: 14, borderRadius: 7 },
-  optionText: { color: theme.colors.text, fontSize: 15 },
+  optionText: { color: theme.colors.text, fontSize: 15, flex: 1 },
   overrideBox: {
     backgroundColor: theme.colors.surfaceAlt,
     borderRadius: theme.radius.sm,
     padding: theme.spacing.sm,
     marginBottom: theme.spacing.sm,
     gap: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   overrideRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
   overrideText: { color: theme.colors.text, fontSize: 13, flex: 1 },
   overrideLink: { color: theme.colors.primary, fontWeight: "600", fontSize: 13 },
-  overrideHint: { color: theme.colors.textMuted, fontSize: 12 },
+  overrideHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   timeRow: { flexDirection: "row", gap: theme.spacing.sm },
   timeButton: {
     flex: 1,
@@ -220,8 +240,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  timeButtonLabel: { color: theme.colors.textMuted, fontSize: 11 },
+  timeButtonLabel: { color: theme.colors.textFaint, fontSize: 11, fontWeight: "600" },
   timeButtonValue: { color: theme.colors.text, fontSize: 15, fontWeight: "700" },
   overrideSaveButton: {
     backgroundColor: theme.colors.primary,
@@ -241,6 +263,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingVertical: theme.spacing.sm,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   closeButtonText: { color: theme.colors.text, fontWeight: "600" },
 });

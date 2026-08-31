@@ -159,21 +159,23 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TutorialDim style={{ gap: theme.spacing.lg }}>
-        <Text style={styles.heading}>Ciao 👋</Text>
-        <Text style={styles.paragraph}>
-          Carica la griglia dei turni del mese: la analizziamo, ti mostriamo i turni trovati e, se confermi, li
-          importiamo nel calendario.
-        </Text>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.heading}>Ciao 👋</Text>
+          <Text style={styles.paragraph}>
+            Carica la griglia dei turni del mese: la analizziamo, ti mostriamo i turni trovati e, se confermi, li
+            importiamo nel calendario.
+          </Text>
+        </View>
 
         <View style={styles.monthPicker}>
           <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
-            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+            <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.monthLabel}>
             {MONTH_NAMES[month - 1]} {year}
           </Text>
           <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
-            <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
       </TutorialDim>
@@ -183,10 +185,13 @@ export default function HomeScreen() {
       </TutorialTarget>
 
       <TutorialDim style={{ gap: theme.spacing.lg }}>
-        <View style={styles.stepsCard}>
-          <Step number={1} text="Carica la foto, il PDF o il Word della griglia turni" />
-          <Step number={2} text="Controlla i turni rilevati e correggi se serve" />
-          <Step number={3} text="Conferma: i turni finiscono nel calendario e (se attivo) parte la sveglia" />
+        <View style={{ gap: theme.spacing.sm }}>
+          <Text style={styles.sectionLabel}>Come funziona</Text>
+          <View style={styles.stepsCard}>
+            <Step number={1} text="Carica la foto, il PDF o il Word della griglia turni" />
+            <Step number={2} text="Controlla i turni rilevati e correggi se serve" />
+            <Step number={3} text="Conferma: i turni finiscono nel calendario e (se attivo) parte la sveglia" />
+          </View>
         </View>
 
         <Text style={styles.privacyNote}>
@@ -220,9 +225,9 @@ function Step({ number, text }: { number: number; text: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: theme.spacing.lg, gap: theme.spacing.lg },
-  heading: { fontSize: 26, fontWeight: "800", color: theme.colors.text },
-  paragraph: { color: theme.colors.textMuted, fontSize: 15, lineHeight: 21 },
+  content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
+  heading: { ...theme.typography.title, color: theme.colors.text },
+  paragraph: { ...theme.typography.body, color: theme.colors.textMuted },
   monthPicker: {
     flexDirection: "row",
     alignItems: "center",
@@ -231,25 +236,36 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
-  monthArrow: { padding: theme.spacing.xs },
-  monthLabel: { color: theme.colors.text, fontSize: 16, fontWeight: "700", textTransform: "capitalize" },
+  monthArrow: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  monthLabel: { color: theme.colors.text, fontSize: 16, fontWeight: "700", textTransform: "capitalize", letterSpacing: 0.2 },
+  sectionLabel: { ...theme.typography.label, color: theme.colors.textFaint },
   stepsCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     gap: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   step: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
   stepNumber: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: theme.colors.surfaceAlt,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primaryMuted,
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNumberText: { color: theme.colors.primary, fontWeight: "700" },
-  stepText: { color: theme.colors.textMuted, flex: 1, fontSize: 13 },
-  privacyNote: { color: theme.colors.textMuted, fontSize: 12, textAlign: "center" },
+  stepNumberText: { color: theme.colors.primary, fontWeight: "800", fontSize: 13 },
+  stepText: { color: theme.colors.textMuted, flex: 1, fontSize: 13, lineHeight: 18 },
+  privacyNote: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
 });

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -69,7 +70,7 @@ export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
   }
 
   return (
-    <TouchableOpacity style={styles.card} onPress={handlePress} disabled={loading} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.card} onPress={handlePress} disabled={loading} activeOpacity={0.85}>
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={theme.colors.primaryText} />
@@ -77,7 +78,9 @@ export function UploadButton({ loading, onFilePicked }: UploadButtonProps) {
         </View>
       ) : (
         <>
-          <Text style={styles.icon}>📎</Text>
+          <View style={styles.iconBadge}>
+            <Ionicons name="cloud-upload-outline" size={30} color={theme.colors.primaryText} />
+          </View>
           <Text style={styles.title}>Carica turni</Text>
           <Text style={styles.subtitle}>Foto, PDF o Word della griglia turni</Text>
         </>
@@ -92,10 +95,20 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     paddingVertical: theme.spacing.xl,
     alignItems: "center",
-    gap: theme.spacing.xs,
+    gap: 6,
+    ...theme.shadow.elevated,
+    shadowColor: theme.colors.primary,
   },
-  icon: { fontSize: 40 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.colors.primaryText },
-  subtitle: { fontSize: 13, color: theme.colors.primaryText, opacity: 0.8 },
+  iconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(3,32,47,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: theme.spacing.xs,
+  },
+  title: { fontSize: 18, fontWeight: "800", color: theme.colors.primaryText, letterSpacing: -0.2 },
+  subtitle: { fontSize: 13, color: theme.colors.primaryText, opacity: 0.75 },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
 });

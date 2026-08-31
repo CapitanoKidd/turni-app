@@ -141,13 +141,13 @@ export default function CalendarScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TutorialDim style={styles.monthPicker}>
         <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.monthLabel}>
           {MONTH_NAMES[month - 1]} {year}
         </Text>
         <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
-          <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
         </TouchableOpacity>
       </TutorialDim>
 
@@ -161,6 +161,7 @@ export default function CalendarScreen() {
       <TutorialTarget name="calendar-overview" style={{ gap: theme.spacing.md }}>
         {shiftTypes.length === 0 ? (
           <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={32} color={theme.colors.textFaint} />
             <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
             <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
             <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
@@ -181,6 +182,7 @@ export default function CalendarScreen() {
               <MonthSummary year={year} month1To12={month} entries={entries} shiftTypes={shiftTypes} />
               {hasShifts ? (
                 <TouchableOpacity style={styles.resetButton} onPress={handleResetCalendar}>
+                  <Ionicons name="trash-outline" size={14} color={theme.colors.danger} />
                   <Text style={styles.resetButtonText}>Cancella i turni di questo mese</Text>
                 </TouchableOpacity>
               ) : null}
@@ -207,7 +209,7 @@ export default function CalendarScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: theme.spacing.lg, gap: theme.spacing.md },
+  content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
   monthPicker: {
     flexDirection: "row",
     alignItems: "center",
@@ -216,16 +218,26 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
-  monthArrow: { padding: theme.spacing.xs },
-  monthLabel: { color: theme.colors.text, fontSize: 16, fontWeight: "700", textTransform: "capitalize" },
-  noneThisMonth: { color: theme.colors.textMuted, fontSize: 13, textAlign: "center" },
+  monthArrow: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  monthLabel: { color: theme.colors.text, fontSize: 16, fontWeight: "700", textTransform: "capitalize", letterSpacing: 0.2 },
+  noneThisMonth: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
   emptyState: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.xl,
     alignItems: "center",
     gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   emptyTitle: { color: theme.colors.text, fontSize: 17, fontWeight: "700" },
   emptyText: { color: theme.colors.textMuted, textAlign: "center" },
@@ -237,6 +249,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   emptyButtonText: { color: theme.colors.primaryText, fontWeight: "700" },
-  resetButton: { alignItems: "center", paddingVertical: theme.spacing.sm },
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: theme.spacing.sm,
+  },
   resetButtonText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
 });

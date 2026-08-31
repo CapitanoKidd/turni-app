@@ -24,13 +24,18 @@ export function AlarmPicker({ enabled, time, onToggleEnabled, onChangeTime, labe
     <View style={styles.container}>
       <View style={styles.switchRow}>
         <Text style={styles.fieldLabel}>{label}</Text>
-        <Switch value={enabled} onValueChange={onToggleEnabled} />
+        <Switch
+          value={enabled}
+          onValueChange={onToggleEnabled}
+          trackColor={{ false: theme.colors.border, true: theme.colors.primaryMuted }}
+          thumbColor={enabled ? theme.colors.primary : theme.colors.textFaint}
+        />
       </View>
 
       {enabled ? (
         <View>
           <Text style={styles.fieldLabel}>Orario sveglia</Text>
-          <TouchableOpacity style={styles.timeButton} onPress={() => setPickerOpen(true)}>
+          <TouchableOpacity style={styles.timeButton} onPress={() => setPickerOpen(true)} activeOpacity={0.8}>
             <Text style={styles.timeButtonText}>{time}</Text>
           </TouchableOpacity>
         </View>
@@ -56,12 +61,15 @@ export function AlarmPicker({ enabled, time, onToggleEnabled, onChangeTime, labe
 const styles = StyleSheet.create({
   container: { gap: theme.spacing.sm },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  fieldLabel: { color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.xs, fontWeight: "600" },
+  fieldLabel: { ...theme.typography.label, color: theme.colors.textFaint, marginBottom: theme.spacing.xs },
   timeButton: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.surfaceAlt,
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: "center",
   },
-  timeButtonText: { color: theme.colors.text, fontSize: 16, fontWeight: "600" },
+  timeButtonText: { color: theme.colors.primary, fontSize: 18, fontWeight: "800", letterSpacing: 0.5 },
 });

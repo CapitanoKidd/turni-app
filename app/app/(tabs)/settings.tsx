@@ -175,8 +175,8 @@ export default function SettingsScreen() {
         {shiftTypes.length === 0 ? (
           <Text style={styles.emptyText}>Nessun turno definito. I turni vengono creati anche automaticamente quando importi la griglia dalla Home.</Text>
         ) : (
-          shiftTypes.map((shift) => (
-            <View key={shift.id} style={styles.shiftRow}>
+          shiftTypes.map((shift, index) => (
+            <View key={shift.id} style={[styles.shiftRow, index > 0 && styles.shiftRowDivider]}>
               <TouchableOpacity
                 style={styles.shiftRowMain}
                 onPress={() => router.push({ pathname: "/shift-type-editor", params: { id: shift.id } })}
@@ -194,10 +194,13 @@ export default function SettingsScreen() {
                 </View>
               </TouchableOpacity>
               {!isDayOff(shift) ? (
-                <TouchableOpacity style={styles.alarmIconButton} onPress={() => openAlarmEditor(shift)}>
+                <TouchableOpacity
+                  style={[styles.alarmIconButton, shift.alarmEnabled && styles.alarmIconButtonActive]}
+                  onPress={() => openAlarmEditor(shift)}
+                >
                   <Ionicons
                     name={shift.alarmEnabled ? "alarm" : "alarm-outline"}
-                    size={22}
+                    size={19}
                     color={shift.alarmEnabled ? theme.colors.primary : theme.colors.textMuted}
                   />
                 </TouchableOpacity>
@@ -220,6 +223,7 @@ export default function SettingsScreen() {
       <Modal visible={editingShift !== undefined} transparent animationType="fade" onRequestClose={() => setAlarmShiftId(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setAlarmShiftId(null)}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Sveglia · {editingShift?.label}</Text>
             <AlarmPicker
               enabled={alarmDraftEnabled}
@@ -260,7 +264,12 @@ function Row({
         <Text style={styles.rowTitle}>{title}</Text>
         <Text style={styles.rowSubtitle}>{subtitle}</Text>
       </View>
-      <Switch value={value} onValueChange={onValueChange} />
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: theme.colors.border, true: theme.colors.primaryMuted }}
+        thumbColor={value ? theme.colors.primary : theme.colors.textFaint}
+      />
     </View>
   );
 }
@@ -268,8 +277,16 @@ function Row({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, gap: theme.spacing.lg, paddingBottom: theme.spacing.xl },
-  section: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: theme.spacing.md, gap: theme.spacing.sm },
-  fieldLabel: { color: theme.colors.textMuted, fontSize: 13, fontWeight: "600" },
+  section: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
+  },
+  fieldLabel: { ...theme.typography.label, color: theme.colors.textFaint },
   fieldError: { color: theme.colors.danger, fontSize: 12 },
   input: {
     backgroundColor: theme.colors.surfaceAlt,
@@ -278,6 +295,8 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     color: theme.colors.text,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   nameActions: { flexDirection: "row", justifyContent: "flex-end", gap: theme.spacing.sm },
   namePrimaryButton: {
@@ -296,19 +315,41 @@ const styles = StyleSheet.create({
   rowTitle: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
   rowSubtitle: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { color: theme.colors.text, fontWeight: "700", fontSize: 15 },
-  addLink: { color: theme.colors.primary, fontWeight: "700" },
-  emptyText: { color: theme.colors.textMuted, fontSize: 13 },
+  sectionTitle: { ...theme.typography.subheading, color: theme.colors.text },
+  addLink: { color: theme.colors.primary, fontWeight: "700", fontSize: 13 },
+  emptyText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19 },
   shiftRow: { flexDirection: "row", alignItems: "center" },
-  shiftRowMain: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm, paddingVertical: theme.spacing.xs, flex: 1 },
-  alarmIconButton: { padding: theme.spacing.xs },
-  dot: { width: 14, height: 14, borderRadius: 7 },
+  shiftRowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+  shiftRowMain: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm, paddingVertical: theme.spacing.sm, flex: 1 },
+  alarmIconButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  alarmIconButtonActive: { backgroundColor: theme.colors.primaryMuted },
+  dot: { width: 12, height: 12, borderRadius: 6 },
   shiftLabel: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
-  shiftTime: { color: theme.colors.textMuted, fontSize: 12 },
-  privacyNote: { color: theme.colors.textMuted, fontSize: 12, textAlign: "center" },
+  shiftTime: { color: theme.colors.textMuted, fontSize: 12, marginTop: 1 },
+  privacyNote: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
   replayTutorialLink: { color: theme.colors.primary, fontSize: 13, fontWeight: "600", textAlign: "center" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: theme.spacing.lg },
-  modalCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: theme.spacing.lg, gap: theme.spacing.md },
-  modalTitle: { color: theme.colors.text, fontSize: 17, fontWeight: "700" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(4,8,16,0.72)", justifyContent: "flex-end" },
+  modalCard: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.md,
+    ...theme.shadow.elevated,
+  },
+  modalHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    marginBottom: theme.spacing.xs,
+  },
+  modalTitle: { ...theme.typography.heading, color: theme.colors.text },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: theme.spacing.sm },
 });

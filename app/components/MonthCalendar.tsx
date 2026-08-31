@@ -84,7 +84,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 onPress={() => onDayPress(cell.iso)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.dayNumber, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
+                <Text style={[styles.dayNumber, isToday && !isWorkingShift && styles.dayNumberToday, isWorkingShift && styles.dayNumberOnShift]}>{cell.day}</Text>
                 {shiftType ? (
                   <Text
                     numberOfLines={1}
@@ -118,23 +118,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  emptyDayCell: { backgroundColor: theme.colors.surface },
+  emptyDayCell: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   // Un giorno di riposo non ha il colore pieno di un turno: deve leggersi
   // subito come "non si lavora", non confondersi con un turno vero.
-  restDayCell: { borderWidth: 1, borderColor: theme.colors.border, borderStyle: "dashed" },
+  restDayCell: { borderWidth: 1, borderColor: theme.colors.borderStrong, borderStyle: "dashed" },
   todayBorder: { borderWidth: 2, borderColor: theme.colors.primary },
   dayNumber: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
-  dayNumberOnShift: { color: "#0B1220" },
-  shiftLabel: { color: "#0B1220", fontSize: 10, fontWeight: "700", maxWidth: "90%" },
+  dayNumberToday: { color: theme.colors.primary, fontWeight: "800" },
+  dayNumberOnShift: { color: theme.colors.background },
+  shiftLabel: { color: theme.colors.background, fontSize: 10, fontWeight: "700", maxWidth: "90%" },
   shiftLabelMuted: { color: theme.colors.textMuted },
   // Piccolo indicatore per i giorni con un orario personalizzato ("modifica singolo turno"), visibile a colpo d'occhio senza aprire il giorno.
   overrideDot: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    top: 3,
+    right: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: theme.colors.text,
+    borderWidth: 1.5,
+    borderColor: theme.colors.background,
   },
 });

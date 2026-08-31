@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -123,7 +124,8 @@ export default function ImportReviewScreen() {
 
       {warnings.map((warning, i) => (
         <View key={i} style={styles.warningBox}>
-          <Text style={styles.warningText}>⚠️ {warning}</Text>
+          <Ionicons name="warning-outline" size={16} color={theme.colors.warning} />
+          <Text style={styles.warningText}>{warning}</Text>
         </View>
       ))}
 
@@ -135,9 +137,12 @@ export default function ImportReviewScreen() {
             una volta sola, verranno applicati a tutte le date corrispondenti.
           </Text>
           {unmappedCodes.map((code) => (
-            <TouchableOpacity key={code} style={styles.unmappedRow} onPress={() => openShiftTypeEditor(code)}>
+            <TouchableOpacity key={code} style={styles.unmappedRow} onPress={() => openShiftTypeEditor(code)} activeOpacity={0.8}>
               <Text style={styles.unmappedCode}>{code}</Text>
-              <Text style={styles.unmappedAction}>Definisci →</Text>
+              <View style={styles.unmappedActionRow}>
+                <Text style={styles.unmappedAction}>Definisci</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -193,13 +198,30 @@ function formatDayLabel(dateIso: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.lg, gap: theme.spacing.md, paddingBottom: theme.spacing.xl },
-  heading: { fontSize: 22, fontWeight: "800", color: theme.colors.text },
+  heading: { ...theme.typography.title, fontSize: 24, color: theme.colors.text },
   subheading: { color: theme.colors.textMuted, marginBottom: theme.spacing.sm },
-  warningBox: { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radius.sm, padding: theme.spacing.sm },
-  warningText: { color: theme.colors.text, fontSize: 13 },
-  section: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: theme.spacing.md, gap: theme.spacing.sm },
-  sectionTitle: { color: theme.colors.text, fontWeight: "700", fontSize: 15 },
-  sectionHint: { color: theme.colors.textMuted, fontSize: 12 },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.warningMuted,
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.warning,
+  },
+  warningText: { color: theme.colors.text, fontSize: 13, flex: 1, lineHeight: 18 },
+  section: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
+  },
+  sectionTitle: { ...theme.typography.subheading, color: theme.colors.text },
+  sectionHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   unmappedRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -208,8 +230,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.dangerMuted,
   },
   unmappedCode: { color: theme.colors.text, fontWeight: "700" },
+  unmappedActionRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   unmappedAction: { color: theme.colors.primary, fontWeight: "600" },
   previewRow: {
     flexDirection: "row",
@@ -230,7 +255,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingVertical: theme.spacing.md,
     alignItems: "center",
+    ...theme.shadow.card,
+    shadowColor: theme.colors.primary,
   },
-  importButtonDisabled: { backgroundColor: theme.colors.surfaceAlt },
+  importButtonDisabled: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0, elevation: 0 },
   importButtonText: { color: theme.colors.primaryText, fontWeight: "700", fontSize: 16 },
 });
