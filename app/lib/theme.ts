@@ -40,7 +40,7 @@ export const theme = {
    * verde piu' chiaro e "morbido" invece che pieno e cupo.
    */
   calendar: {
-    background: `${FOREST_GREEN}D9`, // ~85% di opacita'
+    background: `${FOREST_GREEN}A6`, // ~65% di opacita' (ancora piu' chiaro/trasparente su richiesta)
     cellIdle: FOREST_GREEN_DARK,
     border: "#3E8570",
     text: "#FFFFFF",

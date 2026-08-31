@@ -81,6 +81,26 @@ export default function HomeScreen() {
     return { workDays, restDays };
   }, [entries, shiftTypeById, monthPrefix]);
 
+  // Diviso in due passaggi (invece di un unico filtro) apposta: se la lista
+  // finale risulta vuota, questi conteggi dicono SUBITO perche' (vedi
+  // emptyUpcomingMessage sotto) - "vuoto e basta" non si potrebbe distinguere
+  // da "non c'e' ancora niente di importato" da "c'e' ma e' nel passato" da
+  // "c'e' ma sono tutti giorni di riposo/ferie".
+  const upcomingDiagnostics = useMemo(() => {
+    const todayIso = toIso(new Date());
+    const allEntries = Object.entries(entries);
+    const future = allEntries.filter(([date]) => date >= todayIso);
+    const futureWork = future.filter(([, shiftTypeId]) => {
+      const shiftType = shiftTypeById.get(shiftTypeId);
+      return shiftType && !isDayOff(shiftType);
+    });
+    return {
+      hasAnyEntries: allEntries.length > 0,
+      hasFutureEntries: future.length > 0,
+      hasFutureWork: futureWork.length > 0,
+    };
+  }, [entries, shiftTypeById]);
+
   const upcomingShifts = useMemo(() => {
     const todayIso = toIso(new Date());
     return Object.entries(entries)
@@ -100,6 +120,19 @@ export default function HomeScreen() {
         return { date, shiftType, startTime, endTime, overnight };
       });
   }, [entries, overrides, shiftTypeById]);
+
+  function emptyUpcomingMessage(): string {
+    if (!upcomingDiagnostics.hasAnyEntries) {
+      return "Nessun turno in programma. Importa il prospetto per vederli qui.";
+    }
+    if (!upcomingDiagnostics.hasFutureEntries) {
+      return "I turni caricati sono nel passato. Importa il mese successivo per vederli qui.";
+    }
+    if (!upcomingDiagnostics.hasFutureWork) {
+      return "Nei prossimi giorni hai solo riposo/ferie: qui comparirà il prossimo turno di lavoro.";
+    }
+    return "Nessun turno in programma. Importa il prospetto per vederli qui.";
+  }
 
   function goToReview(result: AnalyzeResponse) {
     router.push({
@@ -268,7 +301,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionLabel}>Prossimi turni</Text>
           {upcomingShifts.length === 0 ? (
             <View style={styles.emptyUpcoming}>
-              <Text style={styles.emptyUpcomingText}>Nessun turno in programma. Importa il prospetto per vederli qui.</Text>
+              <Text style={styles.emptyUpcomingText}>{emptyUpcomingMessage()}</Text>
             </View>
           ) : (
             upcomingShifts.map(({ date, shiftType, startTime, endTime, overnight }) => (
