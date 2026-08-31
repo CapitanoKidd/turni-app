@@ -155,19 +155,19 @@ export default function CalendarScreen() {
       <TutorialTarget name="calendar-overview" style={styles.calendarCard}>
         <View style={styles.monthPicker}>
           <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.monthArrow}>
-            <Ionicons name="chevron-back" size={18} color={theme.colors.text} />
+            <Ionicons name="chevron-back" size={18} color={theme.calendar.text} />
           </TouchableOpacity>
           <Text style={styles.monthLabel}>
             {MONTH_NAMES[month - 1]} {year}
           </Text>
           <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.monthArrow}>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.text} />
+            <Ionicons name="chevron-forward" size={18} color={theme.calendar.text} />
           </TouchableOpacity>
         </View>
 
         {shiftTypes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={32} color={theme.colors.textFaint} />
+            <Ionicons name="calendar-outline" size={32} color={theme.calendar.textFaint} />
             <Text style={styles.emptyTitle}>Nessun turno ancora</Text>
             <Text style={styles.emptyText}>Vai nella Home e carica la griglia turni per iniziare.</Text>
             <TouchableOpacity style={styles.emptyButton} onPress={() => router.push("/(tabs)")}>
@@ -225,10 +225,12 @@ const styles = StyleSheet.create({
   content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
   pageTitle: { ...theme.typography.title, color: theme.colors.text },
   calendarCard: {
-    backgroundColor: theme.colors.surfaceTint,
+    backgroundColor: theme.calendar.background,
     borderRadius: theme.radius.lg,
     padding: theme.spacing.md,
     gap: theme.spacing.md,
+    ...theme.shadow.elevated,
+    shadowColor: theme.calendar.background,
   },
   monthPicker: {
     flexDirection: "row",
@@ -239,19 +241,19 @@ const styles = StyleSheet.create({
   monthArrow: {
     padding: theme.spacing.xs,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.calendar.cellIdle,
   },
-  monthLabel: { color: theme.colors.text, fontSize: 17, fontFamily: theme.font.extraBold, textTransform: "capitalize", letterSpacing: -0.2 },
-  noneThisMonth: { ...theme.typography.caption, color: theme.colors.textFaint, textAlign: "center" },
+  monthLabel: { color: theme.calendar.text, fontSize: 17, fontFamily: theme.font.extraBold, textTransform: "capitalize", letterSpacing: -0.2 },
+  noneThisMonth: { ...theme.typography.caption, color: theme.calendar.textFaint, textAlign: "center" },
   emptyState: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.calendar.cellIdle,
     borderRadius: theme.radius.md,
     padding: theme.spacing.xl,
     alignItems: "center",
     gap: theme.spacing.sm,
   },
-  emptyTitle: { color: theme.colors.text, fontSize: 17, fontFamily: theme.font.bold },
-  emptyText: { color: theme.colors.textMuted, textAlign: "center" },
+  emptyTitle: { color: theme.calendar.text, fontSize: 17, fontFamily: theme.font.bold },
+  emptyText: { color: theme.calendar.textMuted, textAlign: "center" },
   emptyButton: {
     marginTop: theme.spacing.sm,
     backgroundColor: theme.colors.primary,

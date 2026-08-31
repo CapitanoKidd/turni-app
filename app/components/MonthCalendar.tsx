@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { withAlpha } from "../lib/color";
 import { theme } from "../lib/theme";
 import { isDayOff, type CalendarEntries, type CalendarOverrides, type ShiftType } from "../lib/types";
 
@@ -50,22 +49,28 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
 
   // Finche' non conosciamo la larghezza vera non disegniamo celle: prima
   // del primo onLayout avrebbero larghezza 0 e si vedrebbe un lampo vuoto.
-  const cellSize = containerWidth > 0 ? (containerWidth - CELL_GAP * (COLUMNS - 1)) / COLUMNS : 0;
+  // La LARGHEZZA resta legata a "7 colonne esatte" (non si tocca: e' il
+  // calcolo che risolve il bug storico di allineamento). L'ALTEZZA invece
+  // e' volutamente maggiore della larghezza (celle rettangolari, non
+  // quadrate): piu' spazio per numero e sigla del turno, senza cambiare a
+  // quale colonna/giorno corrisponde ciascuna cella.
+  const cellWidth = containerWidth > 0 ? (containerWidth - CELL_GAP * (COLUMNS - 1)) / COLUMNS : 0;
+  const cellHeight = cellWidth * 1.2;
 
   return (
     <View onLayout={handleLayout}>
       <View style={[styles.weekdayRow, { gap: CELL_GAP }]}>
         {WEEKDAY_LABELS.map((label, i) => (
-          <Text key={i} style={[styles.weekdayLabel, { width: cellSize }]}>
+          <Text key={i} style={[styles.weekdayLabel, { width: cellWidth }]}>
             {label}
           </Text>
         ))}
       </View>
 
-      {cellSize > 0 ? (
+      {cellWidth > 0 ? (
         <View style={[styles.grid, { gap: CELL_GAP }]}>
           {cells.map((cell, index) => {
-            if (!cell) return <View key={index} style={{ width: cellSize, height: cellSize }} />;
+            if (!cell) return <View key={index} style={{ width: cellWidth, height: cellHeight }} />;
 
             const shiftType = entries[cell.iso] ? shiftTypeById.get(entries[cell.iso]) : undefined;
             const isToday = cell.iso === todayIso;
@@ -77,8 +82,8 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 key={index}
                 style={[
                   styles.dayCell,
-                  { width: cellSize, height: cellSize },
-                  isWorkingShift ? { backgroundColor: withAlpha(shiftType.color, 0.18) } : styles.emptyDayCell,
+                  { width: cellWidth, height: cellHeight },
+                  isWorkingShift ? { backgroundColor: shiftType.color } : styles.emptyDayCell,
                   shiftType && isDayOff(shiftType) && styles.restDayCell,
                   isToday && styles.todayBorder,
                 ]}
@@ -89,7 +94,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                   style={[
                     styles.dayNumber,
                     isToday && !isWorkingShift && styles.dayNumberToday,
-                    isWorkingShift ? { color: shiftType.color } : null,
+                    isWorkingShift && styles.dayNumberOnShift,
                   ]}
                 >
                   {cell.day}
@@ -97,7 +102,7 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
                 {shiftType ? (
                   <Text
                     numberOfLines={1}
-                    style={[styles.shiftLabel, isWorkingShift ? { color: shiftType.color } : styles.shiftLabelMuted]}
+                    style={[styles.shiftLabel, isWorkingShift ? styles.shiftLabelOnShift : styles.shiftLabelMuted]}
                   >
                     {shiftType.label}
                   </Text>
@@ -113,12 +118,12 @@ export function MonthCalendar({ year, month1To12, entries, shiftTypes, overrides
 }
 
 const styles = StyleSheet.create({
-  weekdayRow: { flexDirection: "row", marginBottom: theme.spacing.xs },
+  weekdayRow: { flexDirection: "row", marginBottom: theme.spacing.sm },
   weekdayLabel: {
     textAlign: "center",
-    color: theme.colors.textMuted,
+    color: theme.calendar.textMuted,
     fontSize: 12,
-    fontFamily: theme.font.semiBold,
+    fontFamily: theme.font.bold,
   },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   dayCell: {
@@ -127,25 +132,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  emptyDayCell: { backgroundColor: theme.colors.surface },
+  emptyDayCell: { backgroundColor: theme.calendar.cellIdle },
   // Un giorno di riposo non ha il colore pieno di un turno: deve leggersi
   // subito come "non si lavora", non confondersi con un turno vero.
-  restDayCell: { borderWidth: 1, borderColor: theme.colors.borderStrong, borderStyle: "dashed" },
-  todayBorder: { borderWidth: 2, borderColor: theme.colors.primary },
-  dayNumber: { color: theme.colors.text, fontSize: 13, fontFamily: theme.font.semiBold },
-  dayNumberToday: { color: theme.colors.primary, fontFamily: theme.font.extraBold },
-  shiftLabel: { fontSize: 10, fontFamily: theme.font.bold, maxWidth: "90%" },
-  shiftLabelMuted: { color: theme.colors.textMuted },
+  restDayCell: { borderWidth: 1, borderColor: theme.calendar.border, borderStyle: "dashed" },
+  todayBorder: { borderWidth: 2, borderColor: theme.calendar.text },
+  dayNumber: { color: theme.calendar.text, fontSize: 15, fontFamily: theme.font.bold },
+  dayNumberToday: { fontFamily: theme.font.extraBold },
+  dayNumberOnShift: { fontFamily: theme.font.extraBold },
+  shiftLabel: { fontSize: 11, fontFamily: theme.font.bold, maxWidth: "90%" },
+  shiftLabelOnShift: { color: theme.calendar.text },
+  shiftLabelMuted: { color: theme.calendar.textFaint },
   // Piccolo indicatore per i giorni con un orario personalizzato ("modifica singolo turno"), visibile a colpo d'occhio senza aprire il giorno.
   overrideDot: {
     position: "absolute",
-    top: 3,
-    right: 3,
-    width: 7,
-    height: 7,
+    top: 4,
+    right: 4,
+    width: 8,
+    height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.warning,
     borderWidth: 1.5,
-    borderColor: theme.colors.surface,
+    borderColor: theme.calendar.text,
   },
 });

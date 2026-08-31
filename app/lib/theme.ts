@@ -26,6 +26,15 @@ export const theme = {
     warning: "#C0821E",
     warningMuted: "#F5E7CC",
   },
+  /** Solo per la card del calendario mensile: sfondo verde scuro invece del chiaro usato ovunque nell'app, richiesto esplicitamente per distinguerlo dal resto e dargli piu' carattere. Di conseguenza testo/bordi qui sono chiari, non scuri come nel resto del tema. */
+  calendar: {
+    background: "#123F32",
+    cellIdle: "rgba(255,255,255,0.08)",
+    border: "rgba(255,255,255,0.16)",
+    text: "#FFFFFF",
+    textMuted: "rgba(255,255,255,0.68)",
+    textFaint: "rgba(255,255,255,0.42)",
+  },
   radius: { sm: 12, md: 18, lg: 26, pill: 999 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
   /** I 5 pesi caricati di Baloo 2 (vedi useFonts in app/_layout.tsx): con un font su misura si usa SEMPRE fontFamily, mai fontWeight (sarebbero pesi diversi dello stesso font di sistema, qui sono file separati). */
