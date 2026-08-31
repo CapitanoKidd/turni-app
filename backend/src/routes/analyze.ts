@@ -5,8 +5,14 @@ import { extractTablesFromDocx } from "../services/docxTableExtractor.js";
 import { AzureDocumentIntelligenceProvider } from "../services/ocr/azureDocumentIntelligence.js";
 import { MockOcrProvider } from "../services/ocr/mockProvider.js";
 import type { ExtractedTable, OcrProvider, RecognizedWord } from "../services/ocr/types.js";
+import { detectPdfDocumentMonth } from "../services/detectDocumentMonth.js";
 import { PDF_MIME, resolvePdfShiftResult } from "../services/pdfRouting.js";
 import { parseShiftGrid, withEveryDayOfMonth, type ShiftGridParseResult } from "../services/shiftGridParser.js";
+
+const MONTH_NAMES_IT = [
+  "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+  "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+];
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_DEBUG_IMAGES = 5; // limite di sicurezza: un documento con molte pagine non deve gonfiare a dismisura la risposta
@@ -154,6 +160,28 @@ analyzeRouter.post("/analyze", analyzeLimiter, upload.single("file"), async (req
       debugTables = await extractTablesFromDocx(file.buffer);
       result = parseShiftGrid(debugTables, target, staffName);
     } else if (file.mimetype === PDF_MIME) {
+      // Controllo gratuito, prima di spendere qualunque chiamata: se il
+      // documento dichiara da solo un mese/anno (es. "Turnistica Agosto
+      // 2026" in intestazione) diverso da quello selezionato nell'app, non
+      // ha senso proseguire — l'analisi "riuscirebbe" comunque (il
+      // contenuto della griglia non dipende dal mese target) ma etichettando
+      // ogni turno con le date sbagliate: l'utente lo vedrebbe come "non ha
+      // rilevato nulla" solo dopo, controllando il mese giusto e trovandolo
+      // vuoto. Se il documento non dichiara nessun mese (o le menzioni sono
+      // discordanti) questo controllo non si applica: mai bloccare un
+      // caricamento legittimo per un'assenza di informazione.
+      const declaredMonth = await detectPdfDocumentMonth(file.buffer);
+      if (declaredMonth && (declaredMonth.year !== target.year || declaredMonth.month1To12 !== target.month1To12)) {
+        res.status(400).json({
+          success: false,
+          error:
+            `Questo documento sembra riferirsi a ${MONTH_NAMES_IT[declaredMonth.month1To12 - 1]} ${declaredMonth.year}, ` +
+            `ma nell'app hai selezionato ${MONTH_NAMES_IT[target.month1To12 - 1]} ${target.year}. ` +
+            `Cambia il mese nella schermata principale e riprova.`,
+        });
+        return;
+      }
+
       const provider = buildOcrProvider(target);
       const outcome = await resolvePdfShiftResult(file.buffer, target, staffName, provider, {
         debug: debugRequested,
