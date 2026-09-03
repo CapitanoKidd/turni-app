@@ -96,12 +96,45 @@ function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
 const MIN_DAY_SEQUENCE_RUN = 5;
 
 /**
+ * Estrae i numeri di giorno da una cella di intestazione che puo' contenerne
+ * PIU' di uno: alcune turnistiche dense (documenti multi-pagina, colonne
+ * strette) fanno fondere ad Azure piu' colonne-giorno vicine in un'unica
+ * cella che occupa piu' colonne, es. "Oktober 2026 Do Fr Sa So 01 02 03 04"
+ * (4 colonne, 4 giorni: 1, 2, 3 e 4) oppure "Fr Sa 30 31" (2 colonne, 2
+ * giorni). Il caso a un solo giorno per cella (la stragrande maggioranza)
+ * e' lo stesso di prima: un'eventuale sigla settimana/giorno davanti, un
+ * solo numero alla fine.
+ *
+ * La cardinalita' e' la guardia contro le sviste: si prendono i numeri
+ * validi (1-31) SOLO dal blocco finale di token numerici consecutivi (quelli
+ * prima, come un numero di settimana o l'anno, vengono ignorati perche' non
+ * sono in coda), e solo se il loro conteggio combacia ESATTAMENTE con
+ * quante colonne la cella dichiara di occupare (`columnSpan`, assente =
+ * 1 colonna). Se non combacia si preferisce restituire null (nessun
+ * giorno da questa cella, si confidera' nell'inferenza per posizione di
+ * `inferDayByColumn`) piuttosto che indovinare quale numero appartiene a
+ * quale colonna.
+ */
+function extractDayNumbersForSpan(text: string, span: number): number[] | null {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const trailing: number[] = [];
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const value = parseDayNumber(tokens[i]);
+    if (value === null) break;
+    trailing.unshift(value);
+  }
+  return trailing.length === span ? trailing : null;
+}
+
+/**
  * Trova la riga/colonna dei giorni cercando la piu' lunga sequenza di numeri
  * consecutivi crescenti (1, 2, 3, 4...) tra le celle ordinate per posizione.
  * E' un segnale molto piu' affidabile del "conta quante celle sono un
  * numero valido": una riga di turni piena di codici numerici come "1", "2",
  * "3" avrebbe anche lei molte celle che sembrano giorni validi, ma i suoi
  * valori non sono mai in ordine crescente come lo sono i giorni del mese.
+ * Una cella che fonde piu' giorni (vedi extractDayNumbersForSpan) conta come
+ * piu' passi consecutivi della sequenza, non uno solo.
  */
 function findDayAxis(groups: Map<number, TableCell[]>, _totalDays: number): number | null {
   let bestIndex: number | null = null;
@@ -114,15 +147,17 @@ function findDayAxis(groups: Map<number, TableCell[]>, _totalDays: number): numb
     let previous: number | null = null;
 
     for (const cell of sorted) {
-      const day = extractTrailingDayNumber(cell.text);
-      if (day === null) {
+      const days = extractDayNumbersForSpan(cell.text, cell.columnSpan ?? 1);
+      if (days === null) {
         currentRun = 0;
         previous = null;
         continue;
       }
-      currentRun = previous !== null && day === previous + 1 ? currentRun + 1 : 1;
-      previous = day;
-      longestRun = Math.max(longestRun, currentRun);
+      for (const day of days) {
+        currentRun = previous !== null && day === previous + 1 ? currentRun + 1 : 1;
+        previous = day;
+        longestRun = Math.max(longestRun, currentRun);
+      }
     }
 
     if (longestRun >= MIN_DAY_SEQUENCE_RUN && longestRun > bestRun) {
@@ -311,8 +346,12 @@ function detectRosterTable(table: ExtractedTable, target: TargetMonth): RosterTa
   const confidentDayByColumn = new Map<number, number>();
   for (let rowIndex = Math.max(0, headerRowIndex - HEADER_ROW_WINDOW + 1); rowIndex <= headerRowIndex; rowIndex++) {
     for (const cell of byRow.get(rowIndex) ?? []) {
-      const day = extractTrailingDayNumber(cell.text);
-      if (day !== null) confidentDayByColumn.set(cell.columnIndex, day);
+      // Una cella che occupa piu' colonne (vedi extractDayNumbersForSpan)
+      // contiene piu' giorni: si distribuiscono in ordine sulle colonne che
+      // occupa, a partire dalla sua columnIndex.
+      const days = extractDayNumbersForSpan(cell.text, cell.columnSpan ?? 1);
+      if (days === null) continue;
+      days.forEach((day, offset) => confidentDayByColumn.set(cell.columnIndex + offset, day));
     }
   }
   // Le colonne la cui intestazione non si legge bene quella volta (fusa con
